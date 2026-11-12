@@ -1,0 +1,21 @@
+flowchart LR
+    subgraph INDEX[Knowledge-base indexing]
+        F[PDF / DOCX / CSV / plain text] --> I[Ingestion<br/>validate and assign IDs]
+        I --> X[Text extraction<br/>text + structure + source locations]
+        X --> C[Chunking<br/>coherent passages]
+        C --> E[Embedding model<br/>chunk text to vector]
+        C --> M[Chunk text + source metadata]
+        E --> V[(Vector database)]
+        M --> V
+    end
+
+    subgraph QUERY[Question answering]
+        Q[User question + project scope] --> QE[Query embedding]
+        QE --> S[Similarity search<br/>with project/access filters]
+        V --> S
+        S --> R[Context retrieval<br/>rank, select, deduplicate]
+        R --> G[Context with source citations]
+        Q --> L[LLM response generation]
+        G --> L
+        L --> A[Grounded answer<br/>with citations and uncertainty]
+    end
