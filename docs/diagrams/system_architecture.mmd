@@ -1,0 +1,38 @@
+flowchart LR
+    U[Team member] -->|Upload project files| UP[Document upload]
+    U -->|Ask a question / request analysis| PA[Project Intelligence Assistant]
+
+    subgraph KB[Knowledge base preparation]
+        UP --> DI[Document ingestion and validation]
+        DI --> TX[Text extraction<br/>PDF / DOCX / CSV / TXT]
+        TX --> CH[Document chunking<br/>retain source locations]
+        CH --> EM[Embedding generation]
+        CH --> PS[Project data store<br/>documents and processing status]
+        EM --> VS[(Vector database<br/>vectors + chunk/source metadata)]
+    end
+
+    subgraph INT[Project intelligence]
+        PA --> OR[Orchestrator]
+        OR --> RET[RAG retrieval<br/>project/access filters]
+        VS --> RET
+        RET --> CTX[Ranked evidence context<br/>with citations]
+        CTX --> OR
+        OR --> SA[Scope and deliverable<br/>extraction agent]
+        OR --> RA[Risk detection and<br/>delivery forecasting agent]
+        OR --> BA[Blocker and action item<br/>identification agent]
+        OR --> DA[Documentation generation agent]
+        SA --> OR
+        RA --> OR
+        BA --> OR
+        DA --> OR
+        PS <--> OR
+        OR --> PA
+    end
+
+    PA --> OUT[Grounded answers and recommendations]
+    OR --> FIND[Validated, evidence-linked findings]
+    FIND --> PS
+    PS --> DR[Dashboard and reports<br/>health, risks, actions, drafts]
+    FIND --> DR
+    OUT --> U
+    DR --> U
