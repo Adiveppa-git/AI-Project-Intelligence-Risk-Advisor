@@ -1,0 +1,31 @@
+flowchart TD
+    REQ[Upload analysis request or user query] --> O[Orchestrator]
+    O --> R[RAG retrieval<br/>project-scoped evidence]
+    R --> E[Evidence passages<br/>with source references]
+
+    E --> S[Scope and Deliverable<br/>Extraction Agent]
+    E --> B[Blocker and Action Item<br/>Identification Agent]
+    S --> V[Validate structure, evidence,<br/>and unresolved questions]
+    B --> V
+    V --> D[Current project records<br/>tasks and milestones]
+    V --> RF[Risk Detection and Delivery<br/>Forecasting Agent]
+    D --> RF
+    S --> RF
+    B --> RF
+    RF --> RV[Validate risk evidence,<br/>assumptions, and uncertainty]
+
+    V --> DOC[Documentation Generation Agent]
+    RV --> DOC
+    DOC --> DV[Validate draft and citations]
+    DV --> STORE[(Evidence-linked project findings<br/>and draft documents)]
+    RV --> STORE
+    V --> STORE
+    STORE --> DASH[Dashboard and reports]
+
+    O --> DIRECT{Question needs<br/>specialized analysis?}
+    DIRECT -->|No| GEN[LLM response generation<br/>from retrieved context]
+    DIRECT -->|Yes| E
+    GEN --> ANSWER[Assistant answer<br/>with citations or evidence gap]
+    DV --> ANSWER
+    ANSWER --> USER[Project team member]
+    DASH --> USER
