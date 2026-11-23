@@ -1,0 +1,29 @@
+# Meeting Notes: Sprint 14 Technical Sync and Risk Review
+Date: 2026-09-18
+Attendees: Alice Chen, Bob Martinez, Carol Vance, David Kim
+
+## Current Blockers
+- Blocker 1: Ingestion pipeline blocked by SecOps approval for external OAuth token exchange (Owner: Bob Martinez).
+- Blocker 2: Database migration scripts failing on staging cluster due to schema mismatch with legacy tables.
+- Blocker 3: Staging cluster environment is experiencing frequent memory out-of-bounds crashes, halting integration tests.
+
+## Pending Decisions
+- Decision 1: Pending decision on selecting ClickHouse vs Snowflake for warm telemetry storage tier (Decision Maker: David Kim, Deadline: 2026-09-25).
+- Decision 2: Pending decision regarding Kafka partition sizing and retention policy sign-off (Decision Maker: Alice Chen, Deadline: 2026-09-28).
+
+## Unresolved Issues
+- Issue: Intermittent network latency spikes exceeding 1200ms when querying cross-region replicas.
+- Issue: Incomplete test coverage on token refresh failure modes.
+- Issue: Flaky integration tests in the continuous delivery pipeline.
+
+## Delayed Activities
+- Activity: Database migration staging run is delayed by 10 days due to schema syntax incompatibilities.
+- Activity: Frontend telemetry chart rendering is behind schedule due to missing API specification.
+
+## Action Items
+- Action Item 1: Bob Martinez to submit SecOps compliance exception ticket by 2026-09-20 (Priority: Critical)
+- Action Item 2: Alice Chen to profile memory usage in telemetry worker pods by 2026-09-24 (Priority: High)
+- Action Item 3: Investigate failing database migration scripts on staging (Assigned to: Unassigned, Deadline: 2026-09-22, Priority: High)
+- Action Item 4: Carol Vance to mock dashboard response models by 2026-09-28 (Priority: Medium)
+- Action Item 5: David Kim to configure automated pod restart policies by 2026-09-26 (Priority: Medium)
+- Action Item 6: Clean up stale test accounts in staging database (Assigned to: Unassigned, Deadline: 2026-09-30, Priority: Low)
