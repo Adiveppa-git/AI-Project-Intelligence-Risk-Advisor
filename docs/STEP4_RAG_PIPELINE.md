@@ -48,6 +48,16 @@ This prototype does not yet include project/tenant IDs or authorization. Do not 
 
 The score is a ranking signal, not a guarantee of factual relevance. Search returns an empty result list when the index is empty. No LLM response is generated.
 
+### Multi-Document Chunk Provenance
+
+When the RAG pipeline is queried by Milestone 2 agents (`ScopeAgent`, `RiskAgent`, `BlockerAgent`), search results from different source documents preserve their authentic chunk context:
+- `document_id`: Stable UUID representing the indexed document.
+- `chunk_id`: Deterministic ID linking directly to the specific text chunk.
+- `filename`: Source file basename (e.g. `project_charter.pdf`, `task_list.csv`).
+- `similarity`: Cosine similarity score.
+
+This chunk context enables multi-agent findings to attribute evidence back to the specific originating file rather than assigning all findings to a single document.
+
 ## API endpoints
 
 ### `POST /api/rag/index`
