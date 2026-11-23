@@ -1,0 +1,49 @@
+# Project Title: Enterprise Cloud Analytics Platform (ECAP)
+
+## Objectives
+- Modernize enterprise telemetry and analytics data pipeline across multi-region cloud infrastructure.
+- Achieve sub-second query latency for executive operational metrics and risk dashboards.
+- Implement unified zero-trust role-based access control (RBAC) across all data warehouse assets.
+- Eliminate legacy batch processing bottlenecks and enable near-real-time streaming analytics.
+
+## Scope Boundaries
+### In-Scope
+- Cloud infrastructure provisioning on Kubernetes clusters.
+- Telemetry data streaming ingestion pipeline using Apache Kafka.
+- Unified OAuth2 and RBAC security gateway module.
+- Real-time executive project health and risk dashboard.
+- Automated data warehouse synchronization with Snowflake.
+
+### Out-of-Scope
+- Legacy mainframe on-premise hardware connectors.
+- Native mobile client applications (iOS and Android).
+- Public third-party partner integration endpoints.
+
+## Project Timeline
+- Start Date: 2026-06-01
+- Target End Date: 2026-12-15
+
+## Expected Deliverables
+- Deliverable 1: Cloud Telemetry Ingestion Pipeline (Owner: Alice Chen, Deadline: 2026-08-15, Status: In progress)
+- Deliverable 2: Unified RBAC Security Gateway (Owner: Bob Martinez, Deadline: 2026-09-30, Status: Pending)
+- Deliverable 3: Real-Time Executive Dashboard (Owner: Carol Vance, Deadline: 2026-11-20, Status: Pending)
+- Deliverable 4: Automated Data Warehouse Sync (Owner: David Kim, Deadline: 2026-12-01, Status: Pending)
+
+## Project Milestones
+- Milestone 1: Architectural Foundation & Cloud Ingestion - Target Date: 2026-08-30 (Owner: Alice Chen)
+- Milestone 2: Security Sign-off & Warehouse Integration - Target Date: 2026-10-15 (Owner: Bob Martinez)
+- Milestone 3: Production Rollout & User Acceptance - Target Date: 2026-12-10 (Owner: David Kim)
+
+## Important Deadlines
+- Infrastructure Freeze Deadline is 2026-10-01 (Owner: David Kim)
+- Security Compliance Audit Deadline is 2026-10-15 (Owner: Bob Martinez)
+- User Acceptance Testing Deadline is 2026-11-25 (Owner: Carol Vance)
+
+## Team Responsibilities
+- Alice Chen is responsible for ingestion pipeline and streaming architecture.
+- Bob Martinez is responsible for security gateway and access control.
+- Carol Vance is responsible for dashboard UI and frontend visualizations.
+- David Kim is responsible for DevOps infrastructure and deployment pipelines.
+
+## Financial Information
+- Approved Initial Budget Allocation: $250,000.
