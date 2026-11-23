@@ -287,6 +287,27 @@ For a meeting note that says, “The identity-provider test environment is unava
 
 This lineage makes it possible to review an AI-generated finding against the original uploaded source.
 
+## Multi-Agent Request and Provenance Contracts (Milestone 2)
+
+For Milestone 2 multi-agent analysis, the request schemas and chunk-level provenance contracts are formalized as:
+
+```python
+class MultiAgentAnalysisRequest(BaseModel):
+    query: str | None = Field(default=None, max_length=4000)
+    top_k: int = Field(default=15, ge=1, le=50)
+    text: str | None = Field(default=None, max_length=500000)
+    document_ids: list[str] | None = None
+
+class DocumentChunkContext:
+    chunk_id: str | None
+    document_id: str | None
+    filename: str
+    text: str
+    similarity: float = 0.0
+```
+
+`DocumentChunkContext` allows agents (`ScopeAgent`, `RiskAgent`, `BlockerAgent`) to retain precise source document identity (`filename`, `document_id`, `chunk_id`) across multi-document RAG search results, avoiding loss of origin when multiple documents are indexed. Canonical deduplication across extracted findings is normalized via `normalize_content_key(text)`.
+
 ## Implementation decisions deferred
 
 These are intentionally left open for implementation planning: concrete database and vector-store products; ID generation; file storage and retention; chunk-size and overlap settings; embedding model and vector dimensions; deduplication and document revision policy; exact access-control roles; forecast calibration; and review/approval workflow. None needs to be guessed in this design deliverable.
