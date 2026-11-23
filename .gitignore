@@ -21,6 +21,7 @@ backend/data/chroma/
 .pytest_cache/
 .coverage
 htmlcov/
+scratch/
 
 # IDE
 .vscode/
