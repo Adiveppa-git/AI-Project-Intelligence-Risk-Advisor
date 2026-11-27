@@ -19,11 +19,14 @@ class IndexDocumentResponse(BaseModel):
     chunks_created: int = Field(ge=0)
     vectors_stored: int = Field(ge=0)
     embedding_model: str
+    total_chunks: int | None = None
 
 
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     top_k: int = Field(default=5, ge=1, le=20)
+    document_id: str | None = None
+    filename: str | None = None
 
 
 class SearchResult(BaseModel):
@@ -34,6 +37,7 @@ class SearchResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     distance: float
     similarity: float
+    filename: str | None = None
 
 
 class SearchResponse(BaseModel):

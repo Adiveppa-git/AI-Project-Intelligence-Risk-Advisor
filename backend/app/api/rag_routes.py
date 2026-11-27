@@ -58,6 +58,7 @@ async def index_document(file: UploadFile = File(...)) -> IndexDocumentResponse:
         chunks_created=stored,
         vectors_stored=stored,
         embedding_model=rag_service.embedding_model,
+        total_chunks=rag_service.vector_store.count(),
     )
 
 
@@ -69,7 +70,12 @@ def search_documents(request: SearchRequest) -> SearchResponse:
             detail="query cannot be empty",
         )
     try:
-        results = rag_service.search(request.query, top_k=request.top_k)
+        results = rag_service.search(
+            request.query,
+            top_k=request.top_k,
+            document_id=request.document_id,
+            filename=request.filename,
+        )
     except EmbeddingError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
