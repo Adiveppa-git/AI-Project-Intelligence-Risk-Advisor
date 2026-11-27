@@ -1,329 +1,721 @@
 # AI-Driven Enterprise Project Intelligence & Risk Management Platform
 
-An enterprise AI platform that ingests unstructured and structured project documentation (PDF, DOCX, CSV, Plain TXT), generates dense semantic vector representations using local sentence-transformers, indexes chunks in persistent ChromaDB storage, and deploys a specialized multi-agent cognitive architecture to automate scope extraction, risk detection, delivery forecasting, and blocker identification.
+An AI-powered full-stack platform that transforms enterprise project documents into actionable project intelligence. It combines a **FastAPI backend, Retrieval-Augmented Generation (RAG), local semantic embeddings, persistent ChromaDB storage, specialized AI agents, and a React dashboard** to help project teams understand scope, monitor delivery risks, identify blockers, and track project health.
+
+The platform supports PDF, DOCX, CSV, and TXT documents. Its multi-agent architecture extracts project scope, deliverables, milestones, risks, blockers, action items, and pending decisions, while preserving source evidence for traceability.
 
 ---
 
 ## Table of Contents
 
-1. [Project Purpose & Value Proposition](#1-project-purpose--value-proposition)
-2. [System Architecture & Multi-Agent Design](#2-system-architecture--multi-agent-design)
-3. [Technology Stack](#3-technology-stack)
-4. [Repository & Directory Structure](#4-repository--directory-structure)
-5. [Environment Setup & Installation](#5-environment-setup--installation)
-6. [Backend Startup & Execution](#6-backend-startup--execution)
-7. [API Reference & Usage](#7-api-reference--usage)
-8. [Document Ingestion & RAG Indexing Flow](#8-document-ingestion--rag-indexing-flow)
-9. [AI Agent Execution & Capabilities](#9-ai-agent-execution--capabilities)
-10. [Automated Testing & Verification](#10-automated-testing--verification)
-11. [Current Implementation Limitations & Future Roadmap](#11-current-implementation-limitations--future-roadmap)
+1. [Project Overview](#1-project-overview)
+2. [Key Features](#2-key-features)
+3. [System Architecture](#3-system-architecture)
+4. [AI Agents and Capabilities](#4-ai-agents-and-capabilities)
+5. [Technology Stack](#5-technology-stack)
+6. [Repository Structure](#6-repository-structure)
+7. [Environment Setup](#7-environment-setup)
+8. [Running the Application](#8-running-the-application)
+9. [API Reference](#9-api-reference)
+10. [Document Ingestion and RAG Workflow](#10-document-ingestion-and-rag-workflow)
+11. [Dashboard Modules](#11-dashboard-modules)
+12. [Evidence, Deduplication, and Data Reliability](#12-evidence-deduplication-and-data-reliability)
+13. [Testing and Validation](#13-testing-and-validation)
+14. [Current Limitations](#14-current-limitations)
+15. [Future Enhancements](#15-future-enhancements)
 
 ---
 
-## 1. Project Purpose & Value Proposition
+## 1. Project Overview
 
-Enterprise software engineering initiatives routinely generate vast quantities of fragmented, cross-functional documentation: formal project charters, Software Requirement Specifications (SRS), sprint meeting minutes, Jira/Excel task export tables, and executive progress reports.
+Enterprise projects generate information across project proposals, project charters, requirement documents, meeting notes, progress reports, and task spreadsheets.
 
-Engineering leaders and project management offices (PMOs) struggle to manually cross-reference these artifacts. The consequences are missed delivery dependencies, untracked scope creep, unassigned action items, and surprise budget overruns.
+Manually reviewing these documents makes it difficult for project managers and stakeholders to identify:
 
-This platform bridges that gap by providing:
-- **Universal Multi-Format Ingestion:** Digital parsing for PDF, Word (.docx), CSV spreadsheets, and Plain Text (.txt) with security limits and metadata preservation.
-- **Explainable, Grounded RAG Pipeline:** Semantic vector search (384-dimensional cosine similarity via `all-MiniLM-L6-v2`) ensuring all extracted intelligence is directly grounded in source document snippets.
-- **Interconnected Multi-Agent Architecture:** Autonomous agents for Project Scope extraction, Risk & Delivery Forecasting, and Blocker/Action Item tracking.
-- **Cross-Functional Synthesis:** An orchestrator service that consolidates findings into an executive report with project health scoring and actionable management next steps.
+- Whether project deliverables and milestones are clearly defined.
+- Which activities are delayed or at risk.
+- What dependencies and resource constraints may affect delivery.
+- Which blockers require immediate attention.
+- Which action items have assigned owners and deadlines.
+- Whether multiple documents describe the same risk or issue.
+
+This platform addresses these challenges by combining document intelligence, semantic retrieval, and specialized AI agents.
+
+### Project Objectives
+
+- Ingest and process structured and unstructured project documents.
+- Convert document content into searchable semantic representations.
+- Extract project scope, deliverables, milestones, and responsibilities.
+- Detect project risks and delivery concerns.
+- Identify blockers, action items, and pending decisions.
+- Consolidate findings from multiple agents into a unified project report.
+- Display project intelligence through an interactive dashboard.
+- Preserve supporting evidence to make extracted findings traceable to their source documents.
 
 ---
 
-## 2. System Architecture & Multi-Agent Design
+## 2. Key Features
 
-The platform uses a modular 4-tier architecture:
+### Multi-Format Document Ingestion
 
+Supports:
+- PDF documents
+- Microsoft Word documents (`.docx`)
+- CSV spreadsheets
+- Plain text documents (`.txt`)
+
+### Retrieval-Augmented Generation (RAG)
+
+- Text extraction and boundary-aware chunking.
+- Semantic embeddings using Sentence Transformers.
+- 384-dimensional embeddings with `all-MiniLM-L6-v2`.
+- Persistent vector indexing using ChromaDB.
+- Semantic similarity search across indexed documents.
+
+### Specialized Multi-Agent Intelligence
+
+- Scope and deliverable extraction.
+- Risk detection and delivery forecasting.
+- Blocker and action item identification.
+- Multi-agent orchestration and report consolidation.
+
+### Evidence-Based Findings
+
+- Source filename and document identification.
+- Supporting evidence snippets.
+- Evidence provenance across multiple documents.
+- Duplicate finding consolidation.
+- Traceable risk and blocker relationships.
+
+### Project Intelligence Dashboard
+
+- Executive project overview.
+- Project health and key statistics.
+- Risk findings and severity classification.
+- Blocker and action item tracking.
+- Milestone and deliverable visibility.
+- Multi-agent analysis results.
+- Document upload and RAG pipeline views.
+
+---
+
+## 3. System Architecture
+
+The platform follows a modular full-stack architecture.
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│                     React Frontend                            │
+│                                                              │
+│ Overview Dashboard | Scope | Risks | Blockers | Milestones   │
+│ Document Upload | RAG Pipeline | Multi-Agent | Architecture  │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    FastAPI REST API                           │
+│                                                              │
+│ Health | Document Ingestion | RAG | Agent Endpoints          │
+└──────────────────────────────┬───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                 Multi-Agent Orchestrator                      │
+│                                                              │
+│ Agent Coordination | Failure Isolation | Report Synthesis    │
+│ Project Health | Executive Summary | Recommendations         │
+└──────────────┬────────────────┬────────────────┬──────────────┘
+               │                │                │
+               ▼                ▼                ▼
+       ┌─────────────┐  ┌─────────────┐  ┌──────────────┐
+       │ Scope Agent │  │ Risk Agent  │  │ Blocker Agent│
+       │             │  │             │  │              │
+       │ Goals       │  │ Risk Types  │  │ Blockers     │
+       │ Scope       │  │ Severity    │  │ Action Items │
+       │ Deliverables│  │ Dependencies│  │ Decisions    │
+       │ Milestones  │  │ Forecasting │  │ Ownership    │
+       └──────┬──────┘  └──────┬──────┘  └──────┬───────┘
+              │                │                │
+              └────────────────┼────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                       RAG Pipeline                            │
+│                                                              │
+│ Document Parsing → Text Chunking → Embedding Generation      │
+│                                                              │
+│                 Persistent ChromaDB Storage                   │
+└──────────────────────────────────────────────────────────────┘
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        FastAPI REST API Layer                          │
-│   /health   /api/documents/upload   /api/rag/*   /api/agents/*         │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                    Multi-Agent Orchestrator Service                    │
-│   Consolidated Reporting | Health Scoring | Failure Isolation          │
-└─────────┬─────────────────────────┬──────────────────────────┬─────────┘
-          │                         │                          │
-          ▼                         ▼                          ▼
-┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
-│   ScopeAgent     │      │    RiskAgent     │      │   BlockerAgent   │
-│ - Scope & Goals  │      │ - Schedule Risks │      │ - Active Blockers│
-│ - In/Out Scope   │      │ - Dependencies   │      │ - Action Items   │
-│ - Deliverables   │      │ - Budget Overruns│      │ - Decisions      │
-│ - Milestones     │      │ - Bottlenecks    │      │ - CSV Rows / Prio│
-└─────────┬────────┘      └─────────┬────────┘      └─────────┬────────┘
-          │                         │                          │
-          └─────────────────────────┼──────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        RAG Pipeline Foundation                         │
-│  Ingestion Engine (PDF/DOCX/CSV/TXT)  ->  Boundary Chunking (1000/150) │
-│  Sentence-Transformers (384-d L2 Norm) -> Persistent ChromaDB Storage  │
-└────────────────────────────────────────────────────────────────────────┘
-```
 
-### Specialized Agents:
-1. **Scope and Deliverable Extraction Agent (`ScopeAgent`):** Identifies concise project titles, objectives, goals, in-scope/out-of-scope boundaries, deliverables, milestones, deadlines, start/end dates, and team responsibilities. Never hallucinates non-existent owners or dates.
-2. **Risk Detection and Delivery Forecasting Agent (`RiskAgent`):** Analyzes documents for schedule risks, missed deadlines, dependency gaps, resource constraints, budget overruns, and delivery challenges. Classifies severity (`Critical`, `High`, `Medium`, `Low`) and forecasts milestone delivery concerns grounded in documented evidence.
-3. **Blocker and Action Item Identification Agent (`BlockerAgent`):** Identifies active blockers, unresolved defects, pending decisions with decision-makers, delayed activities, and action items with owners, deadlines, priority, and status. Automatically filters report headings and completed tasks.
-4. **Multi-Agent Orchestrator Service (`AgentOrchestratorService`):** Coordinates multi-document retrieval across agents with individual failure isolation, computes project health (`Healthy`, `Needs Attention`, `At Risk`, `Critical`), generates executive summaries, and synthesizes key recommendations.
+### Architecture Layers
+
+1. **Frontend Layer:** React-based user interface for document uploads, analysis results, and project monitoring.
+2. **API Layer:** FastAPI endpoints for document ingestion, semantic search, and agent execution.
+3. **Intelligence Layer:** Specialized agents coordinated through the multi-agent orchestrator.
+4. **RAG Layer:** Document parsing, chunking, semantic embedding generation, retrieval, and vector persistence.
 
 ---
 
-## 3. Technology Stack
+## 4. AI Agents and Capabilities
 
-- **Backend Framework:** FastAPI 0.115+, Uvicorn (ASGI)
-- **Document Parsers:**
-  - PDF: PyMuPDF (`fitz` / `pymupdf` 1.24+)
-  - DOCX: `python-docx` 1.1+ (with zip bomb & XML entity expansion guards)
-  - CSV: Python native CSV module (labeled record generation)
-  - TXT: Native UTF-8 engine (with UTF-8-BOM support)
-- **NLP & Embedding Engine:** HuggingFace `sentence-transformers` 3.0+ (`sentence-transformers/all-MiniLM-L6-v2`, 384 dimensions, normalized embeddings)
-- **Vector Database:** ChromaDB 0.5+ (Persistent SQLite / HNSW cosine space)
-- **Data Validation & Schemas:** Pydantic v2
-- **Testing:** Pytest 8.4+, HTTPX, FastAPI TestClient
+### 4.1 Scope and Deliverable Extraction Agent (`ScopeAgent`)
+
+Extracts project definition and planning information, including:
+
+- Project title and objectives.
+- Project goals.
+- In-scope and out-of-scope items.
+- Deliverables and target dates.
+- Milestones and timelines.
+- Team responsibilities and ownership.
+
+The agent uses document evidence to identify available information rather than inventing missing owners or dates.
+
+### 4.2 Risk Detection and Delivery Forecasting Agent (`RiskAgent`)
+
+Identifies project risks and delivery concerns, including:
+
+- Schedule delays.
+- Dependency gaps.
+- Resource constraints.
+- Budget concerns.
+- Delivery bottlenecks.
+- Milestone-related risks.
+
+Risk findings are classified by severity:
+
+- Critical
+- High
+- Medium
+- Low
+
+The agent also uses supporting evidence to explain why a finding was identified.
+
+### 4.3 Blocker and Action Item Identification Agent (`BlockerAgent`)
+
+Identifies operational issues and pending work, including:
+
+- Active blockers.
+- Unresolved issues.
+- Pending decisions.
+- Delayed activities.
+- Action items.
+- Assigned owners.
+- Deadlines, priorities, and statuses.
+
+The extraction process handles structured task information and filters completed tasks and irrelevant report headings.
+
+### 4.4 Multi-Agent Orchestrator (`AgentOrchestratorService`)
+
+Coordinates the three specialized agents and consolidates their outputs.
+
+Responsibilities include:
+
+- Coordinating analysis across indexed project documents.
+- Isolating individual agent failures.
+- Combining scope, risk, and blocker findings.
+- Consolidating duplicate findings.
+- Linking related risks and blockers.
+- Generating an executive summary.
+- Producing project health information and recommendations.
 
 ---
 
-## 4. Repository & Directory Structure
+## 5. Technology Stack
 
-```
+| Layer | Technologies |
+|---|---|
+| Frontend | React 19, JavaScript, Vite 8 |
+| Styling | Tailwind CSS 4, CSS |
+| UI Icons | Lucide React |
+| Backend | Python, FastAPI |
+| API Server | Uvicorn |
+| Data Validation | Pydantic |
+| PDF Processing | PyMuPDF |
+| Word Processing | python-docx |
+| CSV Processing | Python CSV module |
+| Embeddings | Sentence Transformers |
+| Embedding Model | all-MiniLM-L6-v2 |
+| Vector Database | ChromaDB |
+| Testing | Pytest, HTTPX, frontend test suite |
+| Version Control | Git and GitHub |
+
+---
+
+## 6. Repository Structure
+
+```text
 AI-Project-Intelligence-Risk-Advisor/
-├── .gitignore                          # Git ignore rules for virtualenvs, cache, vector DB
-├── .env.example                        # Template environment configuration
-├── README.md                           # Main architectural documentation and usage guide
+│
+├── .gitignore
+├── .env.example
+├── README.md
+│
 ├── backend/
-│   ├── .env.example                    # Backend environment defaults
-│   ├── README.md                       # Backend-specific instructions
-│   ├── requirements.txt                # Pinned dependency requirements
+│   ├── .env.example
+│   ├── README.md
+│   ├── requirements.txt
+│   │
 │   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py                     # FastAPI application factory & route mounts
-│   │   ├── agents/                     # Specialized cognitive agents
-│   │   │   ├── __init__.py
-│   │   │   ├── agent_utils.py          # Provenance tracking, date parsing, section blocks
-│   │   │   ├── blocker_agent.py        # Blocker & Action Item Agent
-│   │   │   ├── risk_agent.py           # Risk Detection & Delivery Forecasting Agent
-│   │   │   └── scope_agent.py          # Scope & Deliverable Extraction Agent
-│   │   ├── api/                        # REST API routers
-│   │   │   ├── __init__.py
-│   │   │   ├── agent_routes.py         # /api/agents/* endpoints
-│   │   │   ├── rag_routes.py           # /api/rag/* endpoints
-│   │   │   └── routes.py               # /api/documents/* endpoints
-│   │   ├── models/                     # Pydantic data schemas
-│   │   │   ├── __init__.py
-│   │   │   ├── agent_models.py         # Multi-agent requests, reports, findings, evidence
-│   │   │   ├── document.py             # Ingestion document models
-│   │   │   └── rag.py                  # Chunks, vector search results, RAG status
-│   │   └── services/                   # Core business logic services
-│   │       ├── __init__.py
-│   │       ├── agent_orchestrator.py   # Multi-agent coordinator & synthesizer
-│   │       ├── chunking.py             # Boundary-aware chunker (1000/150)
-│   │       ├── document_ingestion.py   # PDF, DOCX, CSV, TXT ingestion service
-│   │       ├── embeddings.py           # Sentence-Transformers service
-│   │       ├── rag_pipeline.py         # End-to-end RAG indexing & retrieval
-│   │       └── vector_store.py         # ChromaDB persistence adapter
-│   ├── data/                           # Local vector DB data storage
-│   │   └── chroma/                     # Chroma SQLite & HNSW files
-│   ├── sample_data/                    # Multi-format enterprise test dataset
-│   │   ├── project_charter.pdf         # Official PDF charter
-│   │   ├── progress_report.docx        # Progress report with status tables & delay warnings
-│   │   ├── task_list.csv               # Operational spreadsheet with task priorities & blockers
-│   │   ├── meeting_notes.txt           # Sprint sync minutes with blockers, issues, decisions
-│   │   └── project_proposal.txt        # Full project charter text
-│   └── tests/                          # Automated Pytest test suite (102 tests)
-│       ├── test_agent_api.py           # Agent API endpoint tests
-│       ├── test_agent_orchestrator.py  # Orchestrator & E2E pipeline tests
-│       ├── test_blocker_agent.py       # Blocker agent extraction & deduplication tests
-│       ├── test_chunking.py            # Chunker boundary & overlap tests
-│       ├── test_document_ingestion.py  # Ingestion & parser validation tests
-│       ├── test_rag_integration.py     # Embedding & ChromaDB vector tests
-│       ├── test_risk_agent.py          # Risk agent detection & forecasting tests
-│       └── test_scope_agent.py         # Scope agent extraction tests
-└── docs/                               # Official project documentation
-    ├── COMPLETE_MILESTONE_AUDIT.md     # Deep audit of all M1 & M2 requirements
-    ├── DATA_MODEL_DESIGN.md            # Detailed schema design documentation
-    ├── FINAL_MILESTONE_1_2_COMPLETION_REPORT.md # Final sign-off & acceptance report
-    ├── MILESTONE_1_AUDIT.md            # Milestone 1 audit record
-    ├── MILESTONE_2_ARCHITECTURE.md     # Milestone 2 architecture specification
-    ├── MILESTONE_2_IMPLEMENTATION.md   # Milestone 2 implementation guide
-    ├── MILESTONE_2_VALIDATION.md       # Milestone 2 empirical validation findings
-    ├── STEP1_LEARNING_NOTES.md         # Learning notes: RAG, agents, project management
-    ├── STEP2_SYSTEM_ARCHITECTURE.md    # High-level architecture specification
-    ├── STEP3_DOCUMENT_INGESTION.md     # Document ingestion guide
-    ├── STEP4_RAG_PIPELINE.md           # RAG pipeline implementation notes
-    └── diagrams/                       # Architecture diagrams (Mermaid source)
+│   │   ├── main.py
+│   │   │
+│   │   ├── agents/
+│   │   │   ├── agent_utils.py
+│   │   │   ├── blocker_agent.py
+│   │   │   ├── risk_agent.py
+│   │   │   └── scope_agent.py
+│   │   │
+│   │   ├── api/
+│   │   │   ├── agent_routes.py
+│   │   │   ├── rag_routes.py
+│   │   │   └── routes.py
+│   │   │
+│   │   ├── models/
+│   │   │   ├── agent_models.py
+│   │   │   ├── document.py
+│   │   │   └── rag.py
+│   │   │
+│   │   └── services/
+│   │       ├── agent_orchestrator.py
+│   │       ├── chunking.py
+│   │       ├── document_ingestion.py
+│   │       ├── embeddings.py
+│   │       ├── rag_pipeline.py
+│   │       └── vector_store.py
+│   │
+│   ├── data/
+│   │   └── chroma/
+│   │
+│   ├── sample_data/
+│   │
+│   └── tests/
+│       ├── test_agent_api.py
+│       ├── test_agent_orchestrator.py
+│       ├── test_blocker_agent.py
+│       ├── test_chunking.py
+│       ├── test_document_ingestion.py
+│       ├── test_rag_integration.py
+│       ├── test_risk_agent.py
+│       └── test_scope_agent.py
+│
+├── frontend/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── index.html
+│   ├── vite.config.js
+│   │
+│   ├── public/
+│   │   ├── favicon.svg
+│   │   └── icons.svg
+│   │
+│   ├── src/
+│   │   ├── api.js
+│   │   ├── App.jsx
+│   │   ├── App.css
+│   │   ├── index.css
+│   │   ├── main.jsx
+│   │   │
+│   │   ├── assets/
+│   │   │
+│   │   ├── components/
+│   │   │   ├── Badge.jsx
+│   │   │   ├── EvidenceModal.jsx
+│   │   │   ├── Header.jsx
+│   │   │   ├── Sidebar.jsx
+│   │   │   └── StatCard.jsx
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── ArchitectureOverview.jsx
+│   │   │   ├── BlockerAgentPage.jsx
+│   │   │   ├── DocumentUpload.jsx
+│   │   │   ├── MilestoneTracker.jsx
+│   │   │   ├── MultiAgentPage.jsx
+│   │   │   ├── OverviewDashboard.jsx
+│   │   │   ├── RAGPipeline.jsx
+│   │   │   ├── RiskAgentPage.jsx
+│   │   │   └── ScopeAgentPage.jsx
+│   │   │
+│   │   ├── services/
+│   │   │   ├── api.js
+│   │   │   └── sampleData.js
+│   │   │
+│   │   └── utils/
+│   │       ├── evidenceProvenance.js
+│   │       └── safeRender.js
+│   │
+│   └── test/
+│       └── blocker_render.test.js
+│
+└── docs/
+    └── Project design, milestone, and validation documentation
 ```
+
+The ChromaDB directory contains locally generated vector data and is not required to be committed to GitHub.
 
 ---
 
-## 5. Environment Setup & Installation
+## 7. Environment Setup
 
 ### Prerequisites
-- Python 3.10.x or later installed.
-- Git.
 
-### Step 1: Clone Repository
+- Python 3.10 or later.
+- Node.js and npm.
+- Git.
+- Internet access for installing dependencies and downloading the embedding model when required.
+
+### Step 1: Clone the Repository
+
 ```powershell
-git clone https://github.com/Adiveppa-D-Mamadapur/AI-Project-Intelligence-Risk-Advisor.git
+git clone https://github.com/Adiveppa-git/AI-Project-Intelligence-Risk-Advisor.git
+
 cd AI-Project-Intelligence-Risk-Advisor
 ```
 
-### Step 2: Create and Activate Virtual Environment
+### Step 2: Create the Python Virtual Environment
+
 ```powershell
 python -m venv backend\.venv
+```
+
+Activate it:
+
+```powershell
 backend\.venv\Scripts\Activate.ps1
 ```
 
-### Step 3: Install Dependencies
+If PowerShell blocks activation, run:
+
 ```powershell
-backend\.venv\Scripts\python -m pip install --upgrade pip
-backend\.venv\Scripts\python -m pip install -r backend\requirements.txt
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 ```
 
-### Step 4: Environment Variables (Optional)
-Copy `.env.example` to `.env`:
+Then activate the environment again.
+
+### Step 3: Install Backend Dependencies
+
+```powershell
+python -m pip install --upgrade pip
+
+python -m pip install -r backend\requirements.txt
+```
+
+### Step 4: Install Frontend Dependencies
+
+Open a terminal in the project root:
+
+```powershell
+cd frontend
+
+npm install
+```
+
+Return to the project root when finished:
+
+```powershell
+cd ..
+```
+
+### Step 5: Environment Configuration
+
+Environment templates are available in the repository.
+
+Copy the root template if you need a root-level environment file:
+
 ```powershell
 Copy-Item .env.example .env
 ```
-Default parameters configured:
-- `RAG_CHUNK_SIZE=1000`
-- `RAG_CHUNK_OVERLAP=150`
-- `RAG_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2`
-- `RAG_VECTOR_DB_PATH=backend/data/chroma`
-- `RAG_COLLECTION_NAME=project_chunks`
+
+Keep real credentials and local environment files private. Do not commit `.env` files.
 
 ---
 
-## 6. Backend Startup & Execution
+## 8. Running the Application
 
-Start the FastAPI application:
-```powershell
-$env:PYTHONPATH='backend'
-backend\.venv\Scripts\python -m uvicorn app.main:app --app-dir backend --reload --port 8000
-```
+The backend and frontend run in separate terminals.
 
-Access the service:
-- Interactive Swagger UI: `http://127.0.0.1:8000/docs`
-- Redoc API Documentation: `http://127.0.0.1:8000/redoc`
-- Service Health Check: `http://127.0.0.1:8000/health`
-- Agent Readiness Status: `http://127.0.0.1:8000/api/agents/status`
+### 8.1 Start the Backend
 
----
-
-## 7. API Reference & Usage
-
-### 7.1 Health & Status Endpoints
-- `GET /health`: Returns service operational status (`{"status": "ok"}`).
-- `GET /api/rag/status`: Reports vector store readiness, indexed chunk count, embedding model metadata, and persistence path.
-- `GET /api/agents/status`: Reports availability of all three agents, RAG readiness, and indexed knowledge statistics.
-
-### 7.2 Ingestion & RAG Endpoints
-- `POST /api/documents/upload` (`multipart/form-data`):
-  Uploads any PDF, DOCX, CSV, or TXT document (up to 10 MB). Validates structure, extracts clean UTF-8 text, and returns an `IngestedDocument` with metadata.
-- `POST /api/rag/index` (`multipart/form-data`):
-  Uploads, extracts, chunks, generates normalized dense embeddings, and upserts vectors idempotently into persistent ChromaDB storage.
-- `POST /api/rag/search` (`application/json`):
-  Performs semantic similarity query:
-  ```json
-  {
-    "query": "What are the active schedule delay risks and blockers?",
-    "top_k": 5
-  }
-  ```
-
-### 7.3 Multi-Agent Analysis Endpoints
-- `POST /api/agents/analyze-scope` (`application/json`):
-  Executes `ScopeAgent` to extract goals, in/out of scope items, deliverables, milestones, deadlines, and responsibilities.
-- `POST /api/agents/detect-risks` (`application/json`):
-  Executes `RiskAgent` to detect schedule, dependency, resource, budget, and delivery risks, severity levels, and forecasts.
-- `POST /api/agents/identify-blockers` (`application/json`):
-  Executes `BlockerAgent` to identify blockers, unresolved defects, pending decisions, delayed tasks, and action items.
-- `POST /api/agents/analyze-project` (`application/json`):
-  Executes `AgentOrchestratorService` across all three agents, returning a consolidated `ProjectIntelligenceReport` with health scoring, executive summary, and recommendations:
-  ```json
-  {
-    "query": "Enterprise Cloud Analytics Platform status and risks",
-    "top_k": 15
-  }
-  ```
-
----
-
-## 8. Document Ingestion & RAG Indexing Flow
-
-1. **Upload:** Client transmits file through `/api/documents/upload` or `/api/rag/index`.
-2. **Security & Type Validation:**
-   - Validates file extensions (`.pdf`, `.docx`, `.csv`, `.txt`).
-   - Rejects empty uploads, binary files with null bytes, and files exceeding 10 MB.
-   - Guard against DOCX decompression zip bombs (>50 MB uncompressed limit) and XML entity expansion.
-3. **Structured Text Extraction:**
-   - **PDF:** Extracted page-by-page using PyMuPDF (`fitz`).
-   - **DOCX:** Extracted paragraph-by-paragraph and table cells (`python-docx`).
-   - **CSV:** Labeled row extraction (`Row N: Column A: Value A; Column B: Value B`).
-   - **TXT:** UTF-8 / UTF-8-BOM decoded text.
-4. **Chunking Engine:** Splits text into 1,000-character segments with 150-character boundary overlap, searching backward for sentence ends (`. `, `\n\n`) and word boundaries.
-5. **Vector Embedding:** Encodes chunks with `all-MiniLM-L6-v2` into 384-dimensional unit-normalized vectors.
-6. **Persistent Indexing:** Upserts vectors and metadata into local ChromaDB with SHA-256 stable document IDs ensuring idempotent re-indexing.
-
----
-
-## 9. AI Agent Execution & Capabilities
-
-### Deduplication and Normalization
-Findings across multi-document runs (e.g. blockers mentioned in both meeting notes and task tables) are normalized via `normalize_content_key`, stripping enumeration labels, bullet prefixes, and punctuation. Duplicate findings are merged into a canonical item while consolidating all distinct source evidence snippets.
-
-### Anti-Hallucination & Evidence Provenance
-- Agents never invent non-existent dates (defaulting to `"Not specified"`).
-- Agents never invent fictitious owners (defaulting to `"Unassigned"` or `"Unknown"`).
-- Every finding includes `supporting_evidence` preserving the originating `filename`, `document_id`, and `snippet`.
-
----
-
-## 10. Automated Testing & Verification
-
-The repository contains 102 automated tests executed with Pytest:
+From the project root, activate the backend virtual environment if it is not already active.
 
 ```powershell
 $env:PYTHONPATH='backend'
-backend\.venv\Scripts\pytest backend/tests -v
+
+python -m uvicorn app.main:app --app-dir backend --reload --host 127.0.0.1 --port 8000
 ```
 
-### Test Suite Summary:
-- `backend/tests/test_document_ingestion.py` (22 tests): Tests PDF, DOCX, CSV, TXT parsing, empty files, corrupt files, size limits.
-- `backend/tests/test_chunking.py` (9 tests): Tests boundary-aware chunking, character offsets, overlap repetition.
-- `backend/tests/test_rag_integration.py` (6 tests): Tests SentenceTransformer embeddings, ChromaDB persistence, idempotent re-indexing, semantic search.
-- `backend/tests/test_scope_agent.py` (17 tests): Tests project title isolation, scope boundaries, deliverables, milestones, responsibilities, Swagger single-line scenarios.
-- `backend/tests/test_risk_agent.py` (9 tests): Tests schedule risks, dependency gaps, resource bottlenecks, budget overruns, delivery forecasting.
-- `backend/tests/test_blocker_agent.py` (22 tests): Tests active blockers, action items, CSV task parsing, completed task exclusion, deduplication, provenance.
-- `backend/tests/test_agent_orchestrator.py` (6 tests): Tests orchestrator coordination, health scoring, failure isolation, document_id/query propagation, and full end-to-end multi-format pipeline.
-- `backend/tests/test_agent_api.py` (11 tests): Tests live FastAPI agent endpoints.
+Backend URLs:
 
-**Result: 102 passed, 0 failed, 1 warning (starlette deprecation)** in ~30s.
+| Service | URL |
+|---|---|
+| API base | http://127.0.0.1:8000 |
+| Swagger UI | http://127.0.0.1:8000/docs |
+| ReDoc | http://127.0.0.1:8000/redoc |
+| Health check | http://127.0.0.1:8000/health |
+
+### 8.2 Start the Frontend
+
+Open a second terminal:
+
+```powershell
+cd frontend
+
+npm run dev
+```
+
+Vite displays the local frontend URL in the terminal, normally:
+
+```text
+http://localhost:5173
+```
+
+Open that address in your browser.
+
+### 8.3 Production Build
+
+From the `frontend` directory:
+
+```powershell
+npm run build
+```
+
+This generates the production build in the frontend distribution directory.
 
 ---
 
-## 11. Current Implementation Limitations & Future Roadmap
+## 9. API Reference
 
-### Current Limitations:
-1. **Scanned PDF Bitmaps:** Operates on direct digital text; scanned PDF images require an external OCR pre-processor (e.g. Tesseract).
-2. **Multi-Tenant Partitioning:** Current local ChromaDB persists all documents into a single collection namespace (`project_chunks`).
+The backend exposes endpoints for health checks, document ingestion, semantic retrieval, and agent execution.
 
-### Tracked Future Modules (Milestone 3 / Milestone 4):
-- **Automated Documentation Generation:** Automated generation of formal project charters, risk registers, and release notes in Markdown/PDF.
-- **Dynamic Project Health Scoring:** Advanced algorithmic health metrics factoring in blocker severity, budget burn velocity, and sprint burndown.
-- **Conversational Project Assistant:** Interactive natural language Q&A agent with chat memory for stakeholder inquiries.
-- **Executive Insights Dashboard:** Web frontend visualization for real-time risk heatmaps, milestone Gantt projections, and blocker dependency graphs.
+### 9.1 Health and Status
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | Checks backend availability |
+| GET | `/api/rag/status` | Reports RAG and vector-store status |
+| GET | `/api/agents/status` | Reports agent readiness |
+
+### 9.2 Document and RAG Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/documents/upload` | Uploads and parses a document |
+| POST | `/api/rag/index` | Processes and indexes document content |
+| POST | `/api/rag/search` | Performs semantic document retrieval |
+
+Example semantic search request:
+
+```json
+{
+  "query": "What are the active schedule delay risks and blockers?",
+  "top_k": 5
+}
+```
+
+### 9.3 Multi-Agent Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/agents/analyze-scope` | Extracts project scope and deliverables |
+| POST | `/api/agents/detect-risks` | Identifies project risks |
+| POST | `/api/agents/identify-blockers` | Identifies blockers and action items |
+| POST | `/api/agents/analyze-project` | Runs consolidated multi-agent analysis |
+
+Example consolidated analysis request:
+
+```json
+{
+  "query": "Analyze the enterprise project status, risks, and blockers.",
+  "top_k": 15
+}
+```
+
+For the exact request schemas and response models, use the interactive Swagger documentation at:
+
+http://127.0.0.1:8000/docs
+
+---
+
+## 10. Document Ingestion and RAG Workflow
+
+The document intelligence pipeline follows these stages:
+
+1. **Document Upload:** The user uploads a PDF, DOCX, CSV, or TXT file.
+2. **Validation:** The ingestion service checks file type, content, and applicable upload limits.
+3. **Text Extraction:** Text is extracted using format-specific parsing logic.
+4. **Chunking:** Extracted content is divided into manageable text segments while preserving useful boundaries and overlap.
+5. **Embedding Generation:** Sentence Transformers converts each chunk into a 384-dimensional semantic vector.
+6. **Vector Indexing:** ChromaDB stores embeddings and associated document metadata.
+7. **Semantic Retrieval:** User queries are converted into embeddings and matched against indexed document content.
+8. **Agent Analysis:** Relevant document content is supplied to specialized agents.
+9. **Report Consolidation:** The orchestrator combines the agent outputs into a unified project intelligence report.
+10. **Dashboard Visualization:** The frontend presents findings, evidence, risks, blockers, milestones, and project health.
+
+### Embedding Model
+
+`sentence-transformers/all-MiniLM-L6-v2`
+
+### Vector Store
+
+ChromaDB with persistent local storage.
+
+### Chunking Configuration
+
+The documented default configuration is:
+
+- Chunk size: 1,000 characters.
+- Chunk overlap: 150 characters.
+
+Actual runtime values depend on the active configuration.
+
+---
+
+## 11. Dashboard Modules
+
+The React frontend provides dedicated pages for project monitoring and AI analysis.
+
+| Module | Purpose |
+|---|---|
+| Overview Dashboard | Displays consolidated project intelligence and key statistics |
+| Architecture Overview | Presents the system architecture and its components |
+| Document Upload | Provides document upload and ingestion functionality |
+| RAG Pipeline | Presents document indexing and retrieval information |
+| Scope Agent | Displays extracted scope, goals, deliverables, and milestones |
+| Risk Agent | Displays identified risks and severity information |
+| Blocker Agent | Displays blockers, action items, and pending decisions |
+| Milestone Tracker | Displays milestone and delivery information |
+| Multi-Agent Analysis | Presents consolidated results from the specialized agents |
+
+Reusable frontend components include the application header, sidebar, status badges, statistic cards, and evidence modal.
+
+---
+
+## 12. Evidence, Deduplication, and Data Reliability
+
+### 12.1 Evidence Provenance
+
+The platform maintains source information for extracted findings.
+
+Evidence can include:
+
+- Source filename.
+- Document identifier.
+- Supporting text snippet.
+
+This allows users to understand which document content supports a reported risk, blocker, or other finding.
+
+### 12.2 Finding Deduplication
+
+The multi-agent processing pipeline normalizes finding content to identify repeated issues across documents.
+
+For example, a delivery blocker appearing in both a meeting report and a task spreadsheet can be consolidated into a canonical finding rather than displayed as unrelated duplicates.
+
+Distinct supporting evidence can be retained when findings are merged.
+
+### 12.3 Cross-Agent Relationships
+
+The consolidated analysis can associate related risks and blockers.
+
+This helps stakeholders understand how an operational blocker may contribute to a broader project delivery risk.
+
+### 12.4 Safe Frontend Rendering
+
+Frontend rendering utilities and evidence components handle structured analysis results safely, including findings that contain nested data.
+
+### 12.5 Project Health
+
+The orchestrator generates project health information using consolidated project findings. Health status should be interpreted alongside the underlying risks, blockers, and milestone information rather than as a standalone guarantee of delivery performance.
+
+---
+
+## 13. Testing and Validation
+
+The project includes backend and frontend regression tests.
+
+### Backend Tests
+
+From the project root:
+
+```powershell
+$env:PYTHONPATH='backend'
+
+python -m pytest backend/tests -v
+```
+
+The backend test suite covers:
+
+- Document ingestion and parser validation.
+- Chunking and overlap behavior.
+- RAG integration and vector-store behavior.
+- Scope extraction.
+- Risk detection.
+- Blocker and action item extraction.
+- Deduplication and evidence provenance.
+- Multi-agent orchestration.
+- API behavior and failure handling.
+
+### Frontend Tests
+
+The frontend includes regression coverage for safe blocker rendering.
+
+From the frontend directory, inspect available test scripts:
+
+```powershell
+npm run
+```
+
+Run the test script configured in `package.json`.
+
+### Production Build
+
+```powershell
+cd frontend
+
+npm run build
+```
+
+### Latest Recorded Validation
+
+The latest development verification reported:
+
+- Backend: 118 tests passed.
+- Frontend: 12 tests passed.
+- Frontend production build: successful.
+- Lint: zero errors, with 56 style warnings reported.
+
+These are the latest recorded development results; rerun the commands above to verify the current local checkout.
+
+---
+
+## 14. Current Limitations
+
+1. **Scanned PDF OCR:** Image-based scanned PDFs may require an OCR preprocessing stage to extract text reliably.
+2. **Multi-Tenant Isolation:** The current local vector-store design uses a project collection and does not constitute a complete multi-tenant access-control architecture.
+3. **Health Score Interpretation:** Project health is an analytical indicator based on available findings and should be reviewed with supporting evidence.
+4. **Document Quality:** Missing, outdated, or inconsistent source documents can affect extraction and analysis quality.
+5. **AI Extraction:** Extracted findings should be reviewed by project stakeholders before being used for critical project decisions.
+
+---
+
+## 15. Future Enhancements
+
+Potential future improvements include:
+
+- OCR support for scanned PDF documents.
+- Multi-project and multi-tenant data isolation.
+- Role-based authentication and authorization.
+- Conversational project assistant for natural-language questions.
+- Automated project documentation and report generation.
+- Advanced project health and delivery forecasting.
+- Interactive risk heatmaps and dependency visualizations.
+- Notifications for critical blockers and overdue actions.
+- Cloud deployment and scalable vector storage.
+- Audit history and project analysis versioning.
 
 ---
 
 ## License
 
-This project is developed for the Infosys Springboard Internship Program. All rights reserved.
+This project is developed as part of the **Infosys Springboard Internship Program**.
+
+All rights reserved.
