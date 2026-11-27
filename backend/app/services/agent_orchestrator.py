@@ -4,6 +4,7 @@ Coordinates Scope, Risk, and Blocker agents to generate consolidated
 enterprise project intelligence and risk management reports.
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
@@ -34,11 +35,13 @@ class AgentOrchestratorService:
 
     def analyze_scope(self, request: AgentAnalysisRequest) -> ScopeAnalysisResult:
         """Execute Scope and Deliverable Extraction Agent independently."""
+        fn = request.filename or "Unknown"
         return self.scope_agent.analyze(
             text=request.text,
             query=request.query,
             top_k=request.top_k,
             document_id=request.document_id,
+            filename=fn,
         )
 
     def detect_risks(
@@ -47,21 +50,25 @@ class AgentOrchestratorService:
         scope_context: ScopeAnalysisResult | None = None,
     ) -> RiskAnalysisResult:
         """Execute Risk Detection and Delivery Forecasting Agent independently."""
+        fn = request.filename or "Unknown"
         return self.risk_agent.analyze(
             text=request.text,
             query=request.query,
             top_k=request.top_k,
             document_id=request.document_id,
+            filename=fn,
             scope_context=scope_context,
         )
 
     def identify_blockers(self, request: AgentAnalysisRequest) -> BlockerAnalysisResult:
         """Execute Blocker and Action Item Identification Agent independently."""
+        fn = request.filename or "Unknown"
         return self.blocker_agent.analyze(
             text=request.text,
             query=request.query,
             top_k=request.top_k,
             document_id=request.document_id,
+            filename=fn,
         )
 
     def analyze_project(self, request: MultiAgentAnalysisRequest) -> ProjectIntelligenceReport:
@@ -72,6 +79,7 @@ class AgentOrchestratorService:
             document_id=doc_id,
             text=request.text,
             top_k=request.top_k,
+            filename=request.filename,
         )
 
         partial_failures: list[str] = []
@@ -110,7 +118,10 @@ class AgentOrchestratorService:
                 source_documents=[],
             )
 
-        # 4. Consolidate sources analyzed
+        # 4. Cross-reference risks and blockers for semantic relationship linkage
+        self._link_risks_and_blockers(risk_res, blocker_res)
+
+        # 5. Consolidate sources analyzed
         all_sources = list(
             dict.fromkeys(
                 scope_res.source_documents
@@ -119,11 +130,13 @@ class AgentOrchestratorService:
             )
         )
 
-        # 5. Determine Project Title
+        # 6. Determine Project Title
         project_title = scope_res.project_title if scope_res.project_title != "Unknown" else "Project Intelligence Analysis"
 
-        # 6. Calculate Project Health
+        # 6. Calculate Project Health and Numerical Score
         project_health = self._compute_project_health(risk_res, blocker_res)
+        health_score = self._compute_health_score(project_health, risk_res, blocker_res)
+        now_utc = datetime.now(timezone.utc)
 
         # 7. Generate Executive Summary
         exec_summary = self._generate_executive_summary(
@@ -136,7 +149,7 @@ class AgentOrchestratorService:
         return ProjectIntelligenceReport(
             report_id=str(uuid4()),
             project_title=project_title,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_utc,
             sources_analyzed=all_sources,
             executive_summary=exec_summary,
             project_health=project_health,
@@ -145,6 +158,15 @@ class AgentOrchestratorService:
             blockers_and_actions=blocker_res,
             key_recommendations=recommendations,
             partial_failures=partial_failures,
+            # Dual-schema compatibility for frontend dashboard
+            overall_health_score=health_score,
+            overall_health_status=project_health,
+            timestamp=now_utc,
+            scope_analysis=scope_res,
+            risk_analysis=risk_res,
+            blocker_analysis=blocker_res,
+            has_partial_failures=bool(partial_failures),
+            partial_failure_details=partial_failures,
         )
 
     def status(self) -> AgentStatusResponse:
@@ -190,6 +212,32 @@ class AgentOrchestratorService:
         if risk_res.overall_risk_level == "Medium" or blocker_res.unassigned_action_items_count > 0:
             return "Needs Attention"
         return "Healthy"
+
+    def _compute_health_score(
+        self,
+        health_status: Literal["Healthy", "Needs Attention", "At Risk", "Critical"],
+        risk_res: RiskAnalysisResult,
+        blocker_res: BlockerAnalysisResult,
+    ) -> int:
+        if health_status == "Healthy":
+            score = 92
+        elif health_status == "Needs Attention":
+            score = 75
+        elif health_status == "At Risk":
+            score = 52
+        else:  # Critical
+            score = 32
+
+        active_blockers = [b for b in blocker_res.blockers if b.status != "resolved"]
+        critical_risks = [r for r in risk_res.risks if r.severity == "Critical"]
+        high_risks = [r for r in risk_res.risks if r.severity == "High"]
+
+        score -= len(critical_risks) * 4
+        score -= len(high_risks) * 2
+        score -= len(active_blockers) * 3
+        score -= min(8, blocker_res.unassigned_action_items_count * 2)
+
+        return max(10, min(99, score))
 
     def _generate_executive_summary(
         self,
@@ -259,3 +307,62 @@ class AgentOrchestratorService:
             recommendations.append("Continue tracking scheduled deliverables and maintain weekly syncs.")
 
         return recommendations
+
+    def _link_risks_and_blockers(
+        self,
+        risk: RiskAnalysisResult,
+        blockers: BlockerAnalysisResult,
+    ) -> None:
+        """Link risk findings with corresponding blockers based on semantic topic mapping."""
+        common_stopwords = {
+            "the", "and", "for", "with", "from", "risk", "blocker", "staging",
+            "cluster", "clusters", "environment", "pipeline", "project", "tests",
+            "due", "that", "this", "over", "under", "into", "also", "some", "our",
+            "failing", "delayed", "delayed by", "schedule"
+        }
+
+        for r in risk.risks:
+            r_text = f"{r.title} {r.description}".lower()
+            for b in blockers.blockers:
+                b_text = f"{b.title} {b.description}".lower()
+
+                is_linked = False
+                # 1. OAuth / SecOps compliance review blocker
+                if (
+                    any(k in r_text for k in ["secops", "oauth gateway", "rbac gateway"])
+                    and any(k in b_text for k in ["secops", "oauth", "security compliance", "token exchange"])
+                ):
+                    is_linked = True
+
+                # 2. Database migration failures
+                elif (
+                    any(k in r_text for k in ["database migration", "migration scripts"])
+                    and any(k in b_text for k in ["database migration", "migration scripts", "schema mismatch"])
+                ):
+                    is_linked = True
+
+                # 3. Staging cluster memory crashes
+                elif (
+                    any(k in r_text for k in ["memory out-of-bounds", "memory crashes", "worker pod memory", "frequent memory"])
+                    and any(k in b_text for k in ["memory out-of-bounds", "memory crashes", "frequent memory"])
+                ):
+                    is_linked = True
+
+                # 4. Content word overlap (excluding short tokens and generic environment tokens)
+                else:
+                    r_words = {w for w in re.findall(r"\w+", r_text) if len(w) >= 4 and w not in common_stopwords}
+                    b_words = {w for w in re.findall(r"\w+", b_text) if len(w) >= 4 and w not in common_stopwords}
+                    overlap = r_words.intersection(b_words)
+                    if len(overlap) >= 3:
+                        is_linked = True
+
+                if is_linked:
+                    if b.blocker_id not in r.related_blocker_ids:
+                        r.related_blocker_ids.append(b.blocker_id)
+                    if not r.related_blocker_id:
+                        r.related_blocker_id = b.blocker_id
+
+                    if r.risk_id not in b.related_risk_ids:
+                        b.related_risk_ids.append(r.risk_id)
+                    if not b.related_risk_id:
+                        b.related_risk_id = r.risk_id

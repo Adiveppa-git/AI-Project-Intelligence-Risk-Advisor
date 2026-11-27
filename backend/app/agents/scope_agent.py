@@ -13,6 +13,7 @@ from app.agents.agent_utils import (
     DocumentChunkContext,
     EXCLUDED_PERSON_TOKENS,
     clean_text,
+    detect_filename_from_text,
     extract_dates,
     extract_evidence_snippet,
     extract_owner_or_person,
@@ -53,6 +54,11 @@ class ScopeAgent:
         document_id: str | None = None,
     ) -> ScopeAnalysisResult:
         """Run scope and deliverable analysis on given text or via RAG retrieval."""
+        if (filename == "Unknown" or not filename) and text:
+            detected = detect_filename_from_text(text)
+            if detected:
+                filename = detected
+
         sources: list[str] = []
         evidence_snippets: list[SourceEvidence] = []
         combined_text = ""
@@ -387,18 +393,36 @@ class ScopeAgent:
         in_scope: list[str] = []
         out_of_scope: list[str] = []
 
-        stop_in = (
-            r"(?:[\r\n]+\s*|\.\s+|\s+)(?:Out-of-Scope|Out\s+of\s+Scope|Excluded|"
-            r"Expected\s+Deliverables?|Deliverables?|Milestones?|Timeline)\s*[:=-]"
+        stop_headers = (
+            r"(?:[\r\n]+\s*|\.\s+)(?:\d+[\.\)]\s+)?(?:"
+            r"In-Scope|In\s+Scope|Out-of-Scope|Out\s+of\s+Scope|Excluded|"
+            r"Expected\s+Deliverables?|Deliverables?|Milestones?|Timeline|"
+            r"Team\s*Responsibilities?|Responsibilities?|Team|Team\s*Roles?|"
+            r"Project\s*Governance(?:\s+and\s+Approvals)?|Governance|Approvals?|"
+            r"Budget(?:\s+Allocation)?|Financial|"
+            r"Important\s+Deadlines?|Deadlines?|Risks?|Blockers?|Pending)"
+            r"(?:\s*[:=-]|\s+(?:are|include|covers)\b|(?=[\r\n]|\Z))"
         )
-        stop_out = (
-            r"(?:[\r\n]+\s*|\.\s+|\s+)(?:In-Scope|In\s+Scope|"
-            r"Expected\s+Deliverables?|Deliverables?|Milestones?|Timeline|Team)\s*[:=-]"
-        )
+
+        excluded_keywords = [
+            "governance",
+            "approval",
+            "project lead",
+            "security lead",
+            "frontend lead",
+            "devops lead",
+            "budget",
+            "sponsor",
+            "allocated",
+            "allocation",
+            "initial budget",
+            "deliverable:",
+            "milestone:",
+        ]
 
         # 1. Regex for In-Scope block in text
         m_in = re.search(
-            r"\b(?:In-Scope|In\s+Scope)\s*[:=-]\s*(.+?)(?=(?:" + stop_in + r"|\Z))",
+            r"\b(?:In-Scope|In\s+Scope)\s*[:=-]\s*(.+?)(?=(?:" + stop_headers + r"|\Z))",
             text,
             re.IGNORECASE | re.DOTALL,
         )
@@ -410,12 +434,17 @@ class ScopeAgent:
             )
             for it in items:
                 it = re.sub(r"^[-*•–—]\s*", "", it).strip().rstrip(".,;")
-                if len(it) > 3 and not any(k in it.lower() for k in ["out of scope", "out-of-scope", "deliverable:", "milestone:"]):
+                if (
+                    len(it) > 3
+                    and not any(k in it.lower() for k in ["out of scope", "out-of-scope"] + excluded_keywords)
+                    and not re.match(r"^\d+[\.\)]\s+", it)
+                ):
+                    it = it[0].upper() + it[1:]
                     in_scope.append(it)
 
         # 2. Regex for Out-of-Scope block in text
         m_out = re.search(
-            r"\b(?:Out-of-Scope|Out\s+of\s+Scope|Excluded\s*(?:from\s*scope)?)\s*[:=-]\s*(.+?)(?=(?:" + stop_out + r"|\Z))",
+            r"\b(?:Out-of-Scope|Out\s+of\s+Scope|Excluded\s*(?:from\s*scope)?)\s*[:=-]\s*(.+?)(?=(?:" + stop_headers + r"|\Z))",
             text,
             re.IGNORECASE | re.DOTALL,
         )
@@ -427,7 +456,12 @@ class ScopeAgent:
             )
             for it in items:
                 it = re.sub(r"^[-*•–—]\s*", "", it).strip().rstrip(".,;")
-                if len(it) > 3 and not any(k in it.lower() for k in ["in scope", "in-scope", "deliverable:", "milestone:"]):
+                if (
+                    len(it) > 3
+                    and not any(k in it.lower() for k in ["in scope", "in-scope"] + excluded_keywords)
+                    and not re.match(r"^\d+[\.\)]\s+", it)
+                ):
+                    it = it[0].upper() + it[1:]
                     out_of_scope.append(it)
 
         # 3. Section block scan if not already found
@@ -655,6 +689,7 @@ class ScopeAgent:
                     description=cand if len(cand) > len(name) else None,
                     owner=owner,
                     deadline=deadline,
+                    target_date=deadline,
                     status=status,
                     evidence=evidence,
                 )
@@ -1026,10 +1061,21 @@ class ScopeAgent:
                     evidence = [
                         extract_evidence_snippet(item, filename=src_f, document_id=d_id, chunk_id=c_id, confidence=conf)
                     ]
+                    role_indicators = {
+                        "lead", "manager", "head", "architect", "engineer", "director",
+                        "owner", "sponsor", "coordinator", "officer", "specialist"
+                    }
+                    extracted_role = task if any(w in task.lower().split() for w in role_indicators) else None
+                    matched_deliv = None if extracted_role else task
+
                     responsibilities.append(
                         TeamResponsibility(
                             role_or_person=person,
                             responsibility=task,
+                            role=extracted_role,
+                            member=person,
+                            person=person,
+                            deliverable=matched_deliv,
                             evidence=evidence,
                         )
                     )
@@ -1038,6 +1084,10 @@ class ScopeAgent:
 
         # 3. Text-wide fallback if responsibilities list is still empty
         if not responsibilities:
+            role_indicators = {
+                "lead", "manager", "head", "architect", "engineer", "director",
+                "owner", "sponsor", "coordinator", "officer", "specialist"
+            }
             for m in re.finditer(
                 r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:owns|leads|is\s+responsible\s+for)\s+([^;\.\n]+)",
                 text,
@@ -1053,10 +1103,16 @@ class ScopeAgent:
                         evidence = [
                             extract_evidence_snippet(text, m.span(), filename=filename, document_id=document_id)
                         ]
+                        extracted_role = cand_task if any(w in cand_task.lower().split() for w in role_indicators) else None
+                        matched_deliv = None if extracted_role else cand_task
                         responsibilities.append(
                             TeamResponsibility(
                                 role_or_person=cand_person,
                                 responsibility=cand_task,
+                                role=extracted_role,
+                                member=cand_person,
+                                person=cand_person,
+                                deliverable=matched_deliv,
                                 evidence=evidence,
                             )
                         )
@@ -1076,10 +1132,16 @@ class ScopeAgent:
                         evidence = [
                             extract_evidence_snippet(text, m.span(), filename=filename, document_id=document_id)
                         ]
+                        extracted_role = cand_task if any(w in cand_task.lower().split() for w in role_indicators) else None
+                        matched_deliv = None if extracted_role else cand_task
                         responsibilities.append(
                             TeamResponsibility(
                                 role_or_person=cand_person,
                                 responsibility=cand_task,
+                                role=extracted_role,
+                                member=cand_person,
+                                person=cand_person,
+                                deliverable=matched_deliv,
                                 evidence=evidence,
                             )
                         )
@@ -1129,6 +1191,16 @@ class ScopeAgent:
 
                     if is_match:
                         d.owner = r_person
+                        if not r.deliverable:
+                            r.deliverable = d.name
                         if r_person not in assigned_owners and r_person.lower() not in EXCLUDED_PERSON_TOKENS:
                             assigned_owners.append(r_person)
+                        break
+
+        # Associate deliverables with responsibilities based on owner match
+        for r in responsibilities:
+            if not r.deliverable:
+                for d in deliverables:
+                    if d.owner in {r.role_or_person, r.member, r.person} and d.owner != "Unknown":
+                        r.deliverable = d.name
                         break

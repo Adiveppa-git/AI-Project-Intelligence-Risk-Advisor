@@ -25,6 +25,7 @@ class DeliverableItem(BaseModel):
     description: str | None = None
     owner: str = "Unknown"
     deadline: str = "Not specified"
+    target_date: str = "Not specified"
     status: str = "pending"  # "pending", "completed", "in_progress", "unknown"
     evidence: list[SourceEvidence] = Field(default_factory=list)
 
@@ -49,6 +50,10 @@ class DeadlineItem(BaseModel):
 class TeamResponsibility(BaseModel):
     role_or_person: str
     responsibility: str
+    role: str | None = None
+    member: str | None = None
+    person: str | None = None
+    deliverable: str | None = None
     evidence: list[SourceEvidence] = Field(default_factory=list)
 
 
@@ -86,6 +91,12 @@ class RiskItem(BaseModel):
     potential_impact: str
     suggested_mitigation: str
     recommended_priority: Literal["Critical", "High", "Medium", "Low"]
+    id: str | None = None
+    mitigation: str | None = None
+    evidence: list[SourceEvidence] | None = None
+    related_blocker_ids: list[str] = Field(default_factory=list)
+    related_blocker_id: str | None = None
+    merged_sources: list[str] = Field(default_factory=list)
 
 
 class DelayedMilestoneForecast(BaseModel):
@@ -94,6 +105,13 @@ class DelayedMilestoneForecast(BaseModel):
     predicted_delay_reason: str
     delay_severity: Literal["Critical", "High", "Medium", "Low"]
     supporting_evidence: list[SourceEvidence] = Field(default_factory=list)
+    deliverable: str | None = None
+    name: str | None = None
+    forecasted_date: str | None = None
+    notes: str | None = None
+    rationale: str | None = None
+    confidence: float = 0.88
+    status_label: str | None = None
 
 
 class DependencyGap(BaseModel):
@@ -108,8 +126,14 @@ class RiskAnalysisResult(BaseModel):
     risks: list[RiskItem] = Field(default_factory=list)
     schedule_risks_count: int = 0
     budget_risks_count: int = 0
+    dependency_risks_count: int = 0
+    resource_risks_count: int = 0
+    bottleneck_risks_count: int = 0
+    delivery_risks_count: int = 0
+    category_counts: dict[str, int] = Field(default_factory=dict)
     dependency_gaps: list[DependencyGap] = Field(default_factory=list)
     delayed_milestones_forecast: list[DelayedMilestoneForecast] = Field(default_factory=list)
+    delivery_forecasts: list[DelayedMilestoneForecast] = Field(default_factory=list)
     resource_constraints: list[str] = Field(default_factory=list)
     delivery_challenges: list[str] = Field(default_factory=list)
     potential_bottlenecks: list[str] = Field(default_factory=list)
@@ -130,6 +154,12 @@ class BlockerItem(BaseModel):
     affected_activities: list[str] = Field(default_factory=list)
     assigned_owner: str = "Unassigned"
     supporting_evidence: list[SourceEvidence] = Field(default_factory=list)
+    id: str | None = None
+    owner: str | None = None
+    severity: str | None = "High"
+    evidence: list[SourceEvidence] = Field(default_factory=list)
+    related_risk_ids: list[str] = Field(default_factory=list)
+    related_risk_id: str | None = None
 
 
 class UnresolvedIssue(BaseModel):
@@ -137,6 +167,7 @@ class UnresolvedIssue(BaseModel):
     title: str
     status: str = "unresolved"
     evidence: list[SourceEvidence] = Field(default_factory=list)
+    question: str | None = None
 
 
 class PendingDecision(BaseModel):
@@ -145,6 +176,8 @@ class PendingDecision(BaseModel):
     decision_maker: str = "Unknown"
     deadline: str = "Not specified"
     evidence: list[SourceEvidence] = Field(default_factory=list)
+    title: str | None = None
+    decision: str | None = None
 
 
 class DelayedActivity(BaseModel):
@@ -152,6 +185,9 @@ class DelayedActivity(BaseModel):
     description: str
     reason: str = "Unknown"
     evidence: list[SourceEvidence] = Field(default_factory=list)
+    activity: str | None = None
+    name: str | None = None
+    delay_reason: str | None = None
 
 
 class ActionItem(BaseModel):
@@ -164,11 +200,17 @@ class ActionItem(BaseModel):
     related_blocker: str | None = None
     source_document: str = "Unknown"
     supporting_evidence: list[SourceEvidence] = Field(default_factory=list)
+    action: str | None = None
+    assignee: str | None = None
+    due_date: str | None = None
+    evidence: list[SourceEvidence] = Field(default_factory=list)
 
 
 class BlockerAnalysisResult(BaseModel):
     blockers: list[BlockerItem] = Field(default_factory=list)
+    active_blockers: list[BlockerItem] = Field(default_factory=list)
     unresolved_issues: list[UnresolvedIssue] = Field(default_factory=list)
+    unresolved_questions: list[str] = Field(default_factory=list)
     pending_decisions: list[PendingDecision] = Field(default_factory=list)
     delayed_activities: list[DelayedActivity] = Field(default_factory=list)
     action_items: list[ActionItem] = Field(default_factory=list)
@@ -196,6 +238,16 @@ class ProjectIntelligenceReport(BaseModel):
     key_recommendations: list[str] = Field(default_factory=list)
     partial_failures: list[str] = Field(default_factory=list)
 
+    # MultiAgent dashboard compatibility & computed metrics
+    overall_health_score: int = 85
+    overall_health_status: str = "Healthy"
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    scope_analysis: ScopeAnalysisResult | None = None
+    risk_analysis: RiskAnalysisResult | None = None
+    blocker_analysis: BlockerAnalysisResult | None = None
+    has_partial_failures: bool = False
+    partial_failure_details: list[str] = Field(default_factory=list)
+
 
 # ==========================================
 # 5. Agent API Request & Status Schemas
@@ -206,6 +258,7 @@ class AgentAnalysisRequest(BaseModel):
     document_id: str | None = None
     text: str | None = None
     top_k: int = Field(default=10, ge=1, le=50)
+    filename: str | None = None
 
 
 class MultiAgentAnalysisRequest(BaseModel):
@@ -213,6 +266,7 @@ class MultiAgentAnalysisRequest(BaseModel):
     document_ids: list[str] = Field(default_factory=list)
     text: str | None = None
     top_k: int = Field(default=15, ge=1, le=50)
+    filename: str | None = None
 
 
 class AgentStatusResponse(BaseModel):
