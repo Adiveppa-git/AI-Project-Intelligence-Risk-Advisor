@@ -60,6 +60,8 @@ export const api = {
     });
   },
 
+  getDocuments: (options = {}) => request('/api/documents', options),
+
   // Milestone 1: RAG Pipeline
   indexDocument: (file, options = {}) => {
     const formData = new FormData();

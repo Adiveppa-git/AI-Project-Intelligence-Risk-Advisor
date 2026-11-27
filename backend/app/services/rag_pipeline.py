@@ -93,6 +93,10 @@ class RAGPipelineService:
             where = {"filename": filename}
         return self.vector_store.search(query_embedding, top_k=top_k, where=where)
 
+    def list_documents(self) -> list[dict[str, Any]]:
+        """Return list of all unique documents currently indexed in ChromaDB."""
+        return self.vector_store.get_indexed_documents()
+
     def status(self) -> dict[str, str | int | bool]:
         return {
             "status": "ready",

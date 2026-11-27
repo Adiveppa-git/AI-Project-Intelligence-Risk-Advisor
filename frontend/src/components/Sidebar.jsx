@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   ShieldAlert,
   Cpu,
-  CheckCircle2,
   Layers,
   Sparkles,
 } from 'lucide-react';
@@ -54,7 +53,6 @@ export default function Sidebar({
     {
       title: 'Internship Governance',
       items: [
-        { id: 'milestones', label: 'Milestone Tracker', icon: CheckCircle2, badge: '8/8 Pass' },
         { id: 'architecture', label: 'Architecture & Design', icon: Layers },
       ],
     },

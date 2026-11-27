@@ -180,3 +180,122 @@ def test_rag_api_indexes_searches_and_reports_status(
         json={"query": " \t", "top_k": 1},
     )
     assert empty_query.status_code == 422
+
+
+def test_list_documents_groups_chunks_and_preserves_metadata(
+    embedding_service: SentenceTransformerEmbeddingService,
+    tmp_path,
+) -> None:
+    storage_path = tmp_path / "list-chroma"
+    service = RAGPipelineService(
+        chunk_size=100,
+        chunk_overlap=20,
+        storage_path=storage_path,
+    )
+    service.embedding_service = embedding_service
+
+    # 1. Empty store check
+    empty_docs = service.list_documents()
+    assert empty_docs == []
+    assert service.vector_store.get_indexed_documents() == []
+
+    # 2. Index first document (long text => multiple chunks)
+    doc1 = make_document(
+        "architecture_spec.pdf",
+        "The Enterprise Cloud Analytics Platform modernizes telemetry collection. "
+        "It provides real-time event streaming via Kafka brokers and RBAC gateway security. "
+        "Integration testing occurs on staging Kubernetes clusters before production rollout.",
+    )
+    doc1.file_type = "pdf"
+    indexed1, chunks1 = service.index_document(doc1)
+    assert chunks1 >= 2, "Expected at least 2 chunks for document 1"
+
+    # 3. Index second document (short text => 1 chunk)
+    doc2 = make_document(
+        "sprint_notes.txt",
+        "Sprint 14 meeting notes: Blocker on SecOps approval for OAuth tokens.",
+    )
+    doc2.file_type = "txt"
+    indexed2, chunks2 = service.index_document(doc2)
+    assert chunks2 == 1, "Expected 1 chunk for document 2"
+
+    # Total chunks in vector store is sum of chunks
+    total_stored_chunks = service.vector_store.count()
+    assert total_stored_chunks == chunks1 + chunks2
+
+    # 4. Verify list_documents groups by document_id
+    docs = service.list_documents()
+    # Distinct documents count MUST be 2, NOT total chunks
+    assert len(docs) == 2, f"Expected 2 documents, got {len(docs)}"
+
+    doc1_entry = next((d for d in docs if d["document_id"] == indexed1.document_id), None)
+    assert doc1_entry is not None
+    assert doc1_entry["filename"] == "architecture_spec.pdf"
+    assert doc1_entry["file_type"] == "pdf"
+    assert doc1_entry["chunk_count"] == chunks1
+    assert doc1_entry["status"] == "Indexed"
+    assert doc1_entry["uploaded_at"] is not None
+
+    doc2_entry = next((d for d in docs if d["document_id"] == indexed2.document_id), None)
+    assert doc2_entry is not None
+    assert doc2_entry["filename"] == "sprint_notes.txt"
+    assert doc2_entry["file_type"] == "txt"
+    assert doc2_entry["chunk_count"] == 1
+    assert doc2_entry["status"] == "Indexed"
+
+
+def test_list_documents_api_endpoints(
+    embedding_service: SentenceTransformerEmbeddingService,
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import app.api.routes as doc_routes
+    import app.api.rag_routes as rag_routes
+
+    service = RAGPipelineService(
+        chunk_size=120,
+        chunk_overlap=20,
+        storage_path=tmp_path / "api-list-chroma",
+    )
+    service.embedding_service = embedding_service
+    monkeypatch.setattr(doc_routes, "rag_service", service)
+    monkeypatch.setattr(rag_routes, "rag_service", service)
+
+    client = TestClient(app)
+
+    # 1. Check empty state returns 200 with empty list
+    res_empty = client.get("/api/documents")
+    assert res_empty.status_code == 200
+    assert res_empty.json()["total_documents"] == 0
+    assert res_empty.json()["total_chunks"] == 0
+    assert res_empty.json()["documents"] == []
+
+    # 2. Index a document via API
+    res_index = client.post(
+        "/api/rag/index",
+        files={
+            "file": (
+                "project_charter.txt",
+                b"Enterprise Cloud Analytics Platform charter specification.",
+                "text/plain",
+            )
+        },
+    )
+    assert res_index.status_code == 201
+
+    # 3. Query GET /api/documents
+    res_docs = client.get("/api/documents")
+    assert res_docs.status_code == 200
+    data = res_docs.json()
+    assert data["total_documents"] == 1
+    assert data["total_chunks"] >= 1
+    doc_item = data["documents"][0]
+    assert doc_item["filename"] == "project_charter.txt"
+    assert doc_item["chunk_count"] >= 1
+    assert doc_item["status"] == "Indexed"
+
+    # 4. Query GET /api/rag/documents (matches /api/documents)
+    res_rag_docs = client.get("/api/rag/documents")
+    assert res_rag_docs.status_code == 200
+    assert res_rag_docs.json() == data
+

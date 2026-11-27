@@ -8,6 +8,8 @@ from app.models.rag import (
     RAGStatusResponse,
     SearchRequest,
     SearchResponse,
+    UploadedDocumentItem,
+    UploadedDocumentsResponse,
 )
 from app.services.embeddings import EmbeddingError
 from app.services.document_ingestion import DocumentIngestionError
@@ -99,3 +101,24 @@ def rag_status() -> RAGStatusResponse:
             detail=str(exc),
         ) from exc
     return RAGStatusResponse(**details, checked_at=datetime.now(timezone.utc))
+
+
+@router.get(
+    "/documents",
+    response_model=UploadedDocumentsResponse,
+    summary="List all uploaded and indexed documents in RAG vector store",
+)
+def list_rag_documents() -> UploadedDocumentsResponse:
+    try:
+        docs = rag_service.list_documents()
+        total_chunks = sum(d.get("chunk_count", 0) for d in docs)
+        return UploadedDocumentsResponse(
+            documents=[UploadedDocumentItem(**d) for d in docs],
+            total_documents=len(docs),
+            total_chunks=total_chunks,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not retrieve documents: {exc}",
+        ) from exc

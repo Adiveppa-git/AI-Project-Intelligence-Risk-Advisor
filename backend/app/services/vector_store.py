@@ -77,6 +77,77 @@ class ChromaVectorStore:
                 f"Could not delete document '{document_id}' from ChromaDB."
             ) from exc
 
+    def get_indexed_documents(self) -> list[dict[str, Any]]:
+        """Retrieve unique indexed documents with chunk counts and metadata."""
+        try:
+            if self.count() == 0:
+                return []
+            collection = self._get_collection()
+            data = collection.get(include=["metadatas"])
+            if not data or not data.get("metadatas"):
+                return []
+
+            doc_map: dict[str, dict[str, Any]] = {}
+            for metadata in data["metadatas"]:
+                if not metadata:
+                    continue
+                doc_id = str(metadata.get("document_id") or metadata.get("filename") or "unknown")
+                if doc_id not in doc_map:
+                    raw_fn = metadata.get("filename")
+                    filename_str = str(raw_fn) if raw_fn else "Unknown Document"
+                    raw_ft = metadata.get("file_type")
+                    if raw_ft:
+                        file_type_str = str(raw_ft).lower()
+                    elif raw_fn and "." in str(raw_fn):
+                        file_type_str = Path(str(raw_fn)).suffix.lstrip(".").lower()
+                    else:
+                        file_type_str = None
+
+                    raw_size = metadata.get("file_size_bytes")
+                    try:
+                        size_int = int(raw_size) if raw_size is not None else None
+                    except (ValueError, TypeError):
+                        size_int = None
+
+                    raw_uploaded = metadata.get("uploaded_at")
+                    uploaded_str = (
+                        str(raw_uploaded)
+                        if raw_uploaded and str(raw_uploaded).strip() not in ("None", "null", "")
+                        else None
+                    )
+
+                    doc_map[doc_id] = {
+                        "document_id": doc_id,
+                        "filename": filename_str,
+                        "file_type": file_type_str,
+                        "file_size_bytes": size_int,
+                        "uploaded_at": uploaded_str,
+                        "chunk_count": 0,
+                        "status": "Indexed",
+                    }
+
+                doc_map[doc_id]["chunk_count"] += 1
+                if not doc_map[doc_id]["uploaded_at"] and metadata.get("uploaded_at"):
+                    raw_up = metadata.get("uploaded_at")
+                    if raw_up and str(raw_up).strip() not in ("None", "null", ""):
+                        doc_map[doc_id]["uploaded_at"] = str(raw_up)
+                if doc_map[doc_id]["file_size_bytes"] is None and metadata.get("file_size_bytes") is not None:
+                    try:
+                        doc_map[doc_id]["file_size_bytes"] = int(metadata.get("file_size_bytes"))
+                    except (ValueError, TypeError):
+                        pass
+
+            docs = list(doc_map.values())
+            docs.sort(
+                key=lambda d: (str(d.get("uploaded_at") or ""), str(d.get("filename") or "")),
+                reverse=True,
+            )
+            return docs
+        except VectorStoreError:
+            raise
+        except (ChromaError, OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
+            raise VectorStoreError("Could not retrieve indexed documents from ChromaDB.") from exc
+
     def search(
         self,
         query_embedding: list[float],

@@ -3,7 +3,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.models.document import IngestedDocument
+from app.models.document import (
+    IngestedDocument,
+    UploadedDocumentItem,
+    UploadedDocumentsResponse,
+)
 
 
 class DocumentChunk(BaseModel):

@@ -1,14 +1,20 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-from app.models.document import IngestedDocument
+from app.models.document import (
+    IngestedDocument,
+    UploadedDocumentItem,
+    UploadedDocumentsResponse,
+)
 from app.services.document_ingestion import (
     DEFAULT_MAX_FILE_SIZE_BYTES,
     DocumentIngestionError,
     DocumentIngestionService,
 )
+from app.services.rag_pipeline import RAGPipelineService
 
 router = APIRouter()
 ingestion_service = DocumentIngestionService()
+rag_service = RAGPipelineService()
 
 
 @router.post(
@@ -34,3 +40,24 @@ async def upload_document(
             else 422
         )
         raise HTTPException(status_code=code, detail=message) from exc
+
+
+@router.get(
+    "/documents",
+    response_model=UploadedDocumentsResponse,
+    summary="List all uploaded and indexed documents",
+)
+def list_documents() -> UploadedDocumentsResponse:
+    try:
+        docs = rag_service.list_documents()
+        total_chunks = sum(d.get("chunk_count", 0) for d in docs)
+        return UploadedDocumentsResponse(
+            documents=[UploadedDocumentItem(**d) for d in docs],
+            total_documents=len(docs),
+            total_chunks=total_chunks,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not retrieve documents: {exc}",
+        ) from exc
