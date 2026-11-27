@@ -438,3 +438,94 @@ def test_scope_agent_preserves_original_deliverable_names_single_line_swagger() 
 
     # Exactly three milestones
     assert len(result.milestones) == 3
+
+
+def test_scope_agent_ecap_project_charter_extraction() -> None:
+    charter_text = """Project Title: Enterprise Cloud Analytics Platform (ECAP)
+Document Type: Official Project Charter & Architecture Specification
+Version: 1.0 | Date: 2026-06-01
+Sponsor: Enterprise Architecture Review Board
+1. Executive Summary & Project Purpose
+The Enterprise Cloud Analytics Platform (ECAP) modernizes telemetry data collection and distributed data warehouse operations.
+2. Project Objectives
+- Build a real-time event-driven telemetry pipeline processing 50,000 events/second.
+- Implement zero-trust role-based access control (RBAC) gateway for API clients.
+- Provide real-time operational risk intelligence dashboards for executive leadership.
+- Enable automated streaming synchronization into Snowflake warehouse.
+3. Key Expected Deliverables and Milestones
+- Deliverable 1: Cloud Telemetry Pipeline (Owner: Alice Chen, Deadline: 2026-08-15)
+- Deliverable 2: Unified RBAC Gateway (Owner: Bob Martinez, Deadline: 2026-09-30)
+- Deliverable 3: Real-Time Dashboard (Owner: Carol Vance, Deadline: 2026-11-20)
+- Deliverable 4: Data Warehouse Sync (Owner: David Kim, Deadline: 2026-12-01)
+- Milestone 1: Architectural Foundation (Target Date: 2026-08-30, Owner: Alice Chen)
+- Milestone 2: Security Sign-off (Target Date: 2026-10-15, Owner: Bob Martinez)
+- Milestone 3: Production Rollout (Target Date: 2026-12-10, Owner: David Kim)
+4. Scope Boundaries
+In-Scope: Kubernetes clusters, Kafka streaming, OAuth2 RBAC gateway, Snowflake synchronization.
+Out-of-Scope: Legacy mainframe hardware, native mobile applications, public third-party endpoints.
+5. Project Governance and Approvals
+Project Lead: Alice Chen. Security Lead: Bob Martinez. Frontend Lead: Carol Vance. DevOps Lead: David Kim.
+Approved Initial Budget Allocation: $250,000.
+"""
+    agent = ScopeAgent()
+    result = agent.analyze(text=charter_text, filename="project_charter.pdf")
+
+    # 1. Out-of-Scope verification
+    assert result.out_of_scope == [
+        "Legacy mainframe hardware",
+        "Native mobile applications",
+        "Public third-party endpoints",
+    ]
+    for non_exclusion in ["Governance", "Approvals", "Project Lead", "Security Lead", "Budget", "$250,000"]:
+        assert not any(non_exclusion.lower() in o.lower() for o in result.out_of_scope)
+
+    # 2. In-Scope verification
+    assert any("Kubernetes" in item for item in result.in_scope)
+    assert any("Kafka" in item for item in result.in_scope)
+
+    # 3. Deliverable deadlines & owners
+    assert len(result.expected_deliverables) == 4
+    deliv_map = {d.name: d for d in result.expected_deliverables}
+
+    assert "Cloud Telemetry Pipeline" in deliv_map
+    assert deliv_map["Cloud Telemetry Pipeline"].owner == "Alice Chen"
+    assert deliv_map["Cloud Telemetry Pipeline"].deadline == "2026-08-15"
+    assert deliv_map["Cloud Telemetry Pipeline"].target_date == "2026-08-15"
+    assert deliv_map["Cloud Telemetry Pipeline"].status == "unknown"
+
+    assert "Unified RBAC Gateway" in deliv_map
+    assert deliv_map["Unified RBAC Gateway"].owner == "Bob Martinez"
+    assert deliv_map["Unified RBAC Gateway"].deadline == "2026-09-30"
+    assert deliv_map["Unified RBAC Gateway"].target_date == "2026-09-30"
+    assert deliv_map["Unified RBAC Gateway"].status == "unknown"
+
+    assert "Real-Time Dashboard" in deliv_map
+    assert deliv_map["Real-Time Dashboard"].owner == "Carol Vance"
+    assert deliv_map["Real-Time Dashboard"].deadline == "2026-11-20"
+    assert deliv_map["Real-Time Dashboard"].target_date == "2026-11-20"
+    assert deliv_map["Real-Time Dashboard"].status == "unknown"
+
+    assert "Data Warehouse Sync" in deliv_map
+    assert deliv_map["Data Warehouse Sync"].owner == "David Kim"
+    assert deliv_map["Data Warehouse Sync"].deadline == "2026-12-01"
+    assert deliv_map["Data Warehouse Sync"].target_date == "2026-12-01"
+    assert deliv_map["Data Warehouse Sync"].status == "unknown"
+
+    # 4. Team Responsibilities & Ownership
+    assert len(result.team_responsibilities) == 4
+    resp_map = {r.role_or_person: r for r in result.team_responsibilities}
+    assert resp_map["Alice Chen"].role == "Project Lead"
+    assert resp_map["Alice Chen"].responsibility == "Project Lead"
+    assert resp_map["Alice Chen"].member == "Alice Chen"
+
+    assert resp_map["Bob Martinez"].role == "Security Lead"
+    assert resp_map["Bob Martinez"].responsibility == "Security Lead"
+    assert resp_map["Bob Martinez"].member == "Bob Martinez"
+
+    assert resp_map["Carol Vance"].role == "Frontend Lead"
+    assert resp_map["Carol Vance"].responsibility == "Frontend Lead"
+    assert resp_map["Carol Vance"].member == "Carol Vance"
+
+    assert resp_map["David Kim"].role == "DevOps Lead"
+    assert resp_map["David Kim"].responsibility == "DevOps Lead"
+    assert resp_map["David Kim"].member == "David Kim"

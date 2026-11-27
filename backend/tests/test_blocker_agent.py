@@ -467,3 +467,96 @@ def test_existing_multi_agent_orchestrator_compatibility() -> None:
     assert report.project_health in ["Critical", "At Risk", "Needs Attention"]
 
 
+def test_blocker_agent_alias_fields_and_json_serialization(sample_blocker_text: str) -> None:
+    agent = BlockerAgent()
+    res = agent.analyze(text=sample_blocker_text, filename="meeting.txt")
+
+    # Check BlockerAnalysisResult aliases
+    assert res.active_blockers == res.blockers
+    assert res.unresolved_questions == [iss.title for iss in res.unresolved_issues]
+
+    # Check DelayedActivity aliases
+    assert len(res.delayed_activities) >= 1
+    delayed = res.delayed_activities[0]
+    assert delayed.activity == delayed.description
+    assert delayed.name == delayed.description
+    assert delayed.delay_reason == delayed.reason
+    assert delayed.activity_id is not None
+    assert delayed.evidence is not None
+
+    # Check BlockerItem aliases
+    assert len(res.blockers) >= 1
+    blk = res.blockers[0]
+    assert blk.id == blk.blocker_id
+    assert blk.owner == blk.assigned_owner
+    assert blk.severity in ["Critical", "High", "Medium", "Low"]
+    assert blk.evidence == blk.supporting_evidence
+
+    # Check PendingDecision aliases
+    assert len(res.pending_decisions) >= 1
+    dec = res.pending_decisions[0]
+    assert dec.title == dec.description
+    assert dec.decision == dec.description
+
+    # Check UnresolvedIssue aliases
+    assert len(res.unresolved_issues) >= 1
+    iss = res.unresolved_issues[0]
+    assert iss.question == iss.title
+
+    # Check ActionItem aliases
+    assert len(res.action_items) >= 1
+    act = res.action_items[0]
+    assert act.action == act.description
+    assert act.assignee == act.assigned_person
+    assert act.due_date == act.deadline
+    assert act.evidence == act.supporting_evidence
+
+    # Verify JSON serialization succeeds without circular references or errors
+    dumped = res.model_dump()
+    assert "active_blockers" in dumped
+    assert "delayed_activities" in dumped
+    assert dumped["delayed_activities"][0]["activity_id"] is not None
+    assert dumped["delayed_activities"][0]["reason"] is not None
+    json_str = res.model_dump_json()
+    assert isinstance(json_str, str)
+    assert len(json_str) > 0
+
+
+def test_blocker_agent_evidence_provenance_multi_format() -> None:
+    agent = BlockerAgent()
+
+    # 1. TXT Document Provenance
+    txt_content = """# Meeting Notes: Sprint 14 Technical Sync and Risk Review
+    ## Current Blockers
+    - Blocker 1: Ingestion pipeline blocked by SecOps approval for OAuth token exchange.
+    ## Action Items
+    - Action Item 1: Bob Martinez to submit SecOps exception ticket by 2026-09-20 (Priority: Critical)
+    """
+    res_txt = agent.analyze(text=txt_content, filename="sprint_14_retrospective.txt")
+    assert "sprint_14_retrospective.txt" in res_txt.source_documents
+    assert len(res_txt.blockers) >= 1
+    for ev in res_txt.blockers[0].supporting_evidence:
+        assert ev.filename == "sprint_14_retrospective.txt"
+        assert "SecOps approval" in ev.snippet
+        assert isinstance(ev.confidence, float)
+    for ev in res_txt.action_items[0].supporting_evidence:
+        assert ev.filename == "sprint_14_retrospective.txt"
+
+    # 2. CSV Document Provenance
+    csv_content = """Task ID,Task Name,Deliverable,Owner,Priority,Status,Deadline,Dependencies,Notes
+    TSK-102,Configure RBAC OAuth Gateway,Unified RBAC Security Gateway,Bob Martinez,Critical,In progress,2026-09-28,SecOps Approval,Blocked by security compliance review
+    TSK-104,Execute Staging Database Migration,Automated Data Warehouse Sync,Unassigned,High,Pending,2026-09-30,Kafka Pipeline,Migration tests failing on staging
+    """
+    res_csv = agent.analyze(text=csv_content, filename="task_matrix_sprint14.csv")
+    assert "task_matrix_sprint14.csv" in res_csv.source_documents
+    for b in res_csv.blockers:
+        for ev in b.supporting_evidence:
+            assert ev.filename == "task_matrix_sprint14.csv"
+
+    # 3. Automatic detection when filename="Unknown"
+    res_inferred = agent.analyze(text=txt_content, filename="Unknown")
+    assert "sprint_14_retrospective.txt" in res_inferred.source_documents
+    assert res_inferred.blockers[0].supporting_evidence[0].filename == "sprint_14_retrospective.txt"
+
+
+
