@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 from chromadb.errors import ChromaError
 
@@ -80,6 +81,7 @@ class ChromaVectorStore:
         self,
         query_embedding: list[float],
         top_k: int = 5,
+        where: dict[str, Any] | None = None,
     ) -> list[SearchResult]:
         if top_k <= 0:
             raise ValueError("top_k must be greater than zero")
@@ -88,15 +90,21 @@ class ChromaVectorStore:
             total = collection.count()
             if total == 0:
                 return []
-            matches = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=min(top_k, total),
-                include=["documents", "metadatas", "distances"],
-            )
+            query_kwargs: dict[str, Any] = {
+                "query_embeddings": [query_embedding],
+                "n_results": min(top_k, total),
+                "include": ["documents", "metadatas", "distances"],
+            }
+            if where:
+                query_kwargs["where"] = where
+            matches = collection.query(**query_kwargs)
         except (ChromaError, OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
             raise VectorStoreError("Could not search the ChromaDB collection.") from exc
 
         results: list[SearchResult] = []
+        if not matches or not matches.get("ids") or not matches["ids"][0]:
+            return []
+
         ids = matches["ids"][0]
         documents = matches["documents"][0]
         metadatas = matches["metadatas"][0]
@@ -104,21 +112,27 @@ class ChromaVectorStore:
         for chunk_id, text, metadata, distance in zip(
             ids, documents, metadatas, distances
         ):
+            dist = float(distance)
+            sim = max(-1.0, min(1.0, round(1.0 - dist, 4)))
+            fn = metadata.get("filename") if metadata else None
             results.append(
                 SearchResult(
                     chunk_id=chunk_id,
                     document_id=str(metadata["document_id"]),
                     chunk_index=int(metadata["chunk_index"]),
+                    filename=str(fn) if fn else None,
                     text=text,
                     metadata={
                         key: value
                         for key, value in metadata.items()
                         if key not in {"document_id", "chunk_index"}
                     },
-                    distance=float(distance),
-                    similarity=1.0 - float(distance),
+                    distance=dist,
+                    similarity=sim,
                 )
             )
+        # Sort strictly by distance ascending (similarity descending)
+        results.sort(key=lambda x: x.distance)
         return results
 
     def _get_collection(self):

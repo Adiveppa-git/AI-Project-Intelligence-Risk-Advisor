@@ -224,3 +224,219 @@ def test_end_to_end_multi_format_pipeline_with_real_sample_files(tmp_path) -> No
     evidence_filenames = {ev.filename for ev in all_evidence if ev.filename != "Unknown"}
     assert len(evidence_filenames) >= 2, f"Expected multi-format evidence filenames, got: {evidence_filenames}"
 
+
+def test_orchestrator_health_score_and_dashboard_compatibility(enterprise_project_text: str) -> None:
+    orchestrator = AgentOrchestratorService(rag_service=None)
+    req = MultiAgentAnalysisRequest(text=enterprise_project_text)
+    report = orchestrator.analyze_project(req)
+
+    # 1. Health Score Validation
+    assert isinstance(report.overall_health_score, int)
+    assert 10 <= report.overall_health_score <= 100
+    assert report.overall_health_status in ["Healthy", "Needs Attention", "At Risk", "Critical"]
+    assert report.overall_health_status == report.project_health
+    assert report.timestamp is not None
+
+    # 2. Dual-Schema Compatibility Fields
+    assert report.scope_analysis == report.scope_and_deliverables
+    assert report.risk_analysis == report.risk_and_forecasting
+    assert report.blocker_analysis == report.blockers_and_actions
+    assert report.has_partial_failures is False
+    assert report.partial_failure_details == []
+
+    # 3. Serializability
+    dumped = report.model_dump()
+    assert "overall_health_score" in dumped
+    assert "overall_health_status" in dumped
+    assert "scope_analysis" in dumped
+    assert "risk_analysis" in dumped
+    assert "blocker_analysis" in dumped
+    json_str = report.model_dump_json()
+    assert isinstance(json_str, str)
+
+
+def test_orchestrator_complete_multi_agent_sample_corpus() -> None:
+    """Validate unified corpus extraction across Scope, Risk, and Blocker agents."""
+    corpus = """Project Title: Enterprise Cloud Analytics Platform (ECAP)
+Document Type: Official Project Charter & Architecture Specification
+
+3. Key Expected Deliverables and Milestones
+- Deliverable 1: Cloud Telemetry Pipeline (Owner: Alice Chen, Deadline: 2026-08-15)
+- Deliverable 2: Unified RBAC Gateway (Owner: Bob Martinez, Deadline: 2026-09-30)
+- Deliverable 3: Real-Time Dashboard (Owner: Carol Vance, Deadline: 2026-11-20)
+- Deliverable 4: Data Warehouse Sync (Owner: David Kim, Deadline: 2026-12-01)
+- Milestone 1: Architectural Foundation (Target Date: 2026-08-30, Owner: Alice Chen)
+- Milestone 2: Security Sign-off (Target Date: 2026-10-15, Owner: Bob Martinez)
+- Milestone 3: Production Rollout (Target Date: 2026-12-10, Owner: David Kim)
+
+4. Scope Boundaries
+In-Scope: Kubernetes clusters, Kafka streaming, OAuth2 RBAC gateway, Snowflake synchronization.
+Out-of-Scope: Legacy mainframe hardware, native mobile applications, public third-party endpoints.
+
+# Meeting Notes: Sprint 14 Technical Sync
+## Current Blockers
+- Blocker 1: Ingestion pipeline blocked by SecOps approval for external OAuth token exchange (Owner: Bob Martinez).
+- Blocker 2: Database migration scripts failing on staging cluster due to schema mismatch with legacy tables.
+- Blocker 3: Staging cluster environment is experiencing frequent memory out-of-bounds crashes, halting integration tests.
+
+## Pending Decisions
+- Decision 1: Pending decision on selecting ClickHouse vs Snowflake for warm telemetry storage tier (Decision Maker: David Kim, Deadline: 2026-09-25).
+- Decision 2: Pending decision regarding Kafka partition sizing and retention policy sign-off (Decision Maker: Alice Chen, Deadline: 2026-09-28).
+
+## Action Items
+- Action Item 1: Bob Martinez to submit SecOps compliance exception ticket by 2026-09-20 (Priority: Critical)
+- Action Item 2: Alice Chen to profile memory usage in telemetry worker pods by 2026-09-24 (Priority: High)
+- Action Item 3: Investigate failing database migration scripts on staging (Assigned to: Unassigned, Deadline: 2026-09-22, Priority: High)
+- Action Item 4: Carol Vance to mock dashboard response models by 2026-09-28 (Priority: Medium)
+- Action Item 5: David Kim to configure automated pod restart policies by 2026-09-26 (Priority: Medium)
+- Action Item 6: Clean up stale test accounts in staging database (Assigned to: Unassigned, Deadline: 2026-09-30, Priority: Low)
+
+Schedule and Delivery Risks
+- Milestone 2 is delayed by 3 weeks due to pending SecOps compliance approvals and external API rate limits.
+- Target completion date of 2026-10-15 is at risk of slipping into November 2026.
+- Schedule delay: Security compliance review backlog is directly blocking the deployment of the OAuth Gateway.
+- Dependency gap: The data warehouse sync pipeline depends on the completion of the Kafka brokers.
+- Budget overrun: Cloud infrastructure expenditure exceeded budget by 22% due to over-provisioned staging clusters.
+- Resource constraint: The frontend engineering team is currently understaffed, creating a bandwidth bottleneck.
+- Shortage of senior site reliability engineers has contributed to deployment pipeline instability.
+- Technical bottleneck: High memory consumption in worker pods and intermittent cross-region network latency spikes exceeding 1200ms.
+"""
+    orchestrator = AgentOrchestratorService(rag_service=None)
+    req = MultiAgentAnalysisRequest(text=corpus)
+    report = orchestrator.analyze_project(req)
+
+    # Scope verification: 4 deliverables, at least 3 milestones
+    assert len(report.scope_and_deliverables.expected_deliverables) == 4
+    assert len(report.scope_and_deliverables.milestones) >= 3
+
+    # Risk verification: at least 8 risks detected (including cross-module blocker risks)
+    assert len(report.risk_and_forecasting.risks) >= 8
+
+    # Blocker verification: 3 blockers, action items, pending decisions
+    assert len(report.blockers_and_actions.blockers) >= 3
+    assert len(report.blockers_and_actions.action_items) >= 6
+    assert len(report.blockers_and_actions.pending_decisions) >= 2
+
+    # Consistency between executive summary numbers and structured findings
+    assert f"{len(report.scope_and_deliverables.expected_deliverables)} deliverable(s)" in report.executive_summary
+    assert f"{len(report.risk_and_forecasting.risks)} active risk(s)" in report.executive_summary
+    assert f"{len(report.blockers_and_actions.blockers)} blocker(s)" in report.executive_summary
+    assert f"{len(report.blockers_and_actions.pending_decisions)} pending decision(s)" in report.executive_summary
+
+    # Overall health calculation
+    assert report.overall_health_status == "Critical"
+    assert report.overall_health_score < 50
+
+    # Cross-agent blocker and risk relationship linking verification
+    assert any("BLK-001" in r.related_blocker_ids or r.related_blocker_id == "BLK-001" for r in report.risk_and_forecasting.risks)
+    assert any("BLK-002" in r.related_blocker_ids or r.related_blocker_id == "BLK-002" for r in report.risk_and_forecasting.risks)
+    assert any("BLK-003" in r.related_blocker_ids or r.related_blocker_id == "BLK-003" for r in report.risk_and_forecasting.risks)
+    assert any("RSK-001" in b.related_risk_ids or b.related_risk_id == "RSK-001" for b in report.blockers_and_actions.blockers)
+
+
+def test_orchestrator_deduplication_and_cross_agent_linking_full_corpus() -> None:
+    """Validate deduplication and cross-agent linking across the complete 4-document integrated corpus."""
+    full_corpus = """Project Title: Enterprise Cloud Analytics Platform (ECAP)
+Document Type: Official Project Charter & Architecture Specification
+
+3. Key Expected Deliverables and Milestones
+- Deliverable 1: Cloud Telemetry Pipeline (Owner: Alice Chen, Deadline: 2026-08-15)
+- Deliverable 2: Unified RBAC Gateway (Owner: Bob Martinez, Deadline: 2026-09-30)
+- Deliverable 3: Real-Time Dashboard (Owner: Carol Vance, Deadline: 2026-11-20)
+- Deliverable 4: Data Warehouse Sync (Owner: David Kim, Deadline: 2026-12-01)
+- Milestone 1: Architectural Foundation (Target Date: 2026-08-30, Owner: Alice Chen)
+- Milestone 2: Security Sign-off (Target Date: 2026-10-15, Owner: Bob Martinez)
+- Milestone 3: Production Rollout (Target Date: 2026-12-10, Owner: David Kim)
+
+4. Scope Boundaries
+In-Scope: Kubernetes clusters, Kafka streaming, OAuth2 RBAC gateway, Snowflake synchronization.
+Out-of-Scope: Legacy mainframe hardware, native mobile applications, public third-party endpoints.
+
+# Meeting Notes: Sprint 14 Technical Sync and Risk Review
+## Current Blockers
+- Blocker 1: Ingestion pipeline blocked by SecOps approval for external OAuth token exchange (Owner: Bob Martinez).
+- Blocker 2: Database migration scripts failing on staging cluster due to schema mismatch with legacy tables.
+- Blocker 3: Staging cluster environment is experiencing frequent memory out-of-bounds crashes, halting integration tests.
+
+## Pending Decisions
+- Decision 1: Pending decision on selecting ClickHouse vs Snowflake for warm telemetry storage tier (Decision Maker: David Kim, Deadline: 2026-09-25).
+- Decision 2: Pending decision regarding Kafka partition sizing and retention policy sign-off (Decision Maker: Alice Chen, Deadline: 2026-09-28).
+
+## Unresolved Issues
+- Issue: Intermittent network latency spikes exceeding 1200ms when querying cross-region replicas.
+- Issue: Incomplete test coverage on token refresh failure modes.
+- Issue: Flaky integration tests in the continuous delivery pipeline.
+
+## Delayed Activities
+- Activity: Database migration staging run is delayed by 10 days due to schema syntax incompatibilities.
+- Activity: Frontend telemetry chart rendering is behind schedule due to missing API specification.
+
+## Action Items
+- Action Item 1: Bob Martinez to submit SecOps compliance exception ticket by 2026-09-20 (Priority: Critical)
+- Action Item 2: Alice Chen to profile memory usage in telemetry worker pods by 2026-09-24 (Priority: High)
+- Action Item 3: Investigate failing database migration scripts on staging (Assigned to: Unassigned, Deadline: 2026-09-22, Priority: High)
+
+Enterprise Cloud Analytics Platform - Monthly Progress Report
+Schedule and Delivery Risks
+- Milestone 2 (Security Sign-off & Warehouse Integration) is delayed by 3 weeks due to pending SecOps compliance approvals and external API rate limits.
+- The target completion date of 2026-10-15 is at risk of slipping into November 2026.
+- Schedule delay: Security compliance review backlog is directly blocking the deployment of the OAuth Gateway.
+- Dependency gap: The data warehouse sync pipeline depends on the completion of the Kafka brokers and schema validation module.
+
+Budget and Resource Constraints
+- Budget overrun: Cloud infrastructure expenditure exceeded budget by 22% due to over-provisioned staging clusters.
+- Resource constraint: The frontend engineering team is currently understaffed, creating a bandwidth bottleneck for dashboard widget completion.
+- Shortage of senior site reliability engineers has contributed to deployment pipeline instability.
+
+Technical Bottlenecks
+- Technical bottleneck: High memory consumption in worker pods and intermittent cross-region network latency spikes exceeding 1200ms.
+
+Task ID,Task Name,Deliverable,Owner,Priority,Status,Deadline,Dependencies,Notes
+TSK-101,Deploy Kafka Ingestion Brokers,Cloud Telemetry Ingestion Pipeline,Alice Chen,High,Completed,2026-08-10,None,Deployed to Kubernetes cluster successfully
+TSK-102,Configure RBAC OAuth Gateway,Unified RBAC Security Gateway,Bob Martinez,Critical,In progress,2026-09-28,SecOps Approval,Blocked by security compliance review
+TSK-103,Design Executive Chart Components,Real-Time Executive Dashboard,Carol Vance,Medium,In progress,2026-10-15,None,UI mockups approved by stakeholders
+TSK-104,Execute Staging Database Migration,Automated Data Warehouse Sync,Unassigned,High,Pending,2026-09-30,Kafka Pipeline,Migration tests failing on staging
+TSK-105,Cloud Cost Containment Audit,Budget Optimization,David Kim,High,Pending,2026-10-05,None,Cloud spend exceeded budget by 22%
+TSK-106,Automate Multi-Region Failover,Cloud Infrastructure,David Kim,Medium,Pending,2026-11-15,Kubernetes Clusters,Pending secondary cloud provider account setup
+TSK-107,Perform Load and Stress Testing,System Reliability,Unassigned,Medium,Pending,2026-11-01,Staging Database Migration,Requires stable staging environment
+"""
+    orchestrator = AgentOrchestratorService(rag_service=None)
+    req = MultiAgentAnalysisRequest(text=full_corpus)
+    report = orchestrator.analyze_project(req)
+
+    # 1. Deduplication: risks should be between 10 and 14 (not the inflated 19)
+    assert 10 <= len(report.risk_and_forecasting.risks) <= 15, f"Unexpected risk count: {len(report.risk_and_forecasting.risks)}"
+
+    # 2. SecOps OAuth blocker should have exactly 1 canonical risk
+    secops_risks = [r for r in report.risk_and_forecasting.risks if "oauth" in r.title.lower() or "secops" in r.title.lower()]
+    assert len(secops_risks) == 1
+    assert secops_risks[0].severity == "Critical"
+    assert "BLK-001" in secops_risks[0].related_blocker_ids
+
+    # 3. Database migration should have exactly 1 canonical risk
+    db_risks = [r for r in report.risk_and_forecasting.risks if "migration" in r.title.lower()]
+    assert len(db_risks) == 1
+    assert "BLK-002" in db_risks[0].related_blocker_ids
+
+    # 4. Memory crash should have exactly 1 canonical risk
+    mem_risks = [r for r in report.risk_and_forecasting.risks if "memory" in r.title.lower()]
+    assert len(mem_risks) == 1
+    assert "BLK-003" in mem_risks[0].related_blocker_ids
+
+    # 5. Cloud budget overrun should have exactly 1 canonical risk
+    budget_risks = [r for r in report.risk_and_forecasting.risks if "budget" in r.category.lower()]
+    assert len(budget_risks) == 1
+
+    # 6. No raw CSV titles
+    for r in report.risk_and_forecasting.risks:
+        assert r.title.count(",") < 3, f"Raw CSV in risk title: {r.title}"
+
+    # 7. Blockers deduplicated to exactly 3 active blockers
+    assert len(report.blockers_and_actions.blockers) == 3
+    for b in report.blockers_and_actions.blockers:
+        assert len(b.related_risk_ids) >= 1
+
+    # 8. Category counts strictly match length of risks
+    assert sum(report.risk_and_forecasting.category_counts.values()) == len(report.risk_and_forecasting.risks)
+
+

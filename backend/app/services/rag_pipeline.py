@@ -1,6 +1,7 @@
 import hashlib
 import os
 from pathlib import Path
+from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 from app.models.document import IngestedDocument
@@ -69,7 +70,13 @@ class RAGPipelineService:
         stored = self.vector_store.index_chunks(chunks, embeddings)
         return indexed_document, stored
 
-    def search(self, query: str, top_k: int = 5) -> list[SearchResult]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        document_id: str | None = None,
+        filename: str | None = None,
+    ) -> list[SearchResult]:
         if not query.strip():
             raise ValueError("query cannot be empty")
         if top_k <= 0:
@@ -77,7 +84,14 @@ class RAGPipelineService:
         if self.vector_store.count() == 0:
             return []
         query_embedding = self.embedding_service.embed_query(query)
-        return self.vector_store.search(query_embedding, top_k=top_k)
+        where: dict[str, Any] | None = None
+        if document_id and filename:
+            where = {"$and": [{"document_id": document_id}, {"filename": filename}]}
+        elif document_id:
+            where = {"document_id": document_id}
+        elif filename:
+            where = {"filename": filename}
+        return self.vector_store.search(query_embedding, top_k=top_k, where=where)
 
     def status(self) -> dict[str, str | int | bool]:
         return {
