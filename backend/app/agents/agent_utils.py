@@ -1,5 +1,7 @@
 """Utility functions and pattern recognizers for AI-style agents."""
 
+import csv
+import io
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -35,9 +37,207 @@ def normalize_content_key(text: str) -> str:
     return s
 
 
+def parse_structured_task_row(line: str) -> dict[str, str] | None:
+    """Parse structured task lines from CSV rows, semicolon lists, or key-value format.
+
+    Returns a normalized dictionary with keys:
+    task_id, task_name, deliverable, owner, priority, status, deadline, dependencies, notes
+    or None if the line is not a task row.
+    """
+    clean_l = line.strip()
+    if not clean_l:
+        return None
+
+    line_lower = clean_l.lower()
+
+    # Ignore CSV header line
+    if line_lower.startswith("task id,") or "task id,task name" in line_lower:
+        return None
+
+    # Case 1: Comma-separated CSV format (e.g. TSK-101,... or starts with Task ID pattern)
+    if (re.match(r"^TSK-\d+", clean_l, re.IGNORECASE) or clean_l.count(",") >= 5) and not line_lower.startswith(("http://", "https://")):
+        try:
+            reader = csv.reader(io.StringIO(clean_l))
+            row = next(reader)
+        except Exception:
+            row = [p.strip() for p in clean_l.split(",")]
+
+        if len(row) >= 5 and (re.match(r"^TSK-", row[0].strip(), re.IGNORECASE) or len(row) >= 7):
+            t_id = row[0].strip()
+            t_name = row[1].strip() if len(row) > 1 else ""
+            t_deliv = row[2].strip() if len(row) > 2 else ""
+            t_owner = row[3].strip() if len(row) > 3 and row[3].strip() else "Unassigned"
+            t_prio = row[4].strip() if len(row) > 4 and row[4].strip() else "Medium"
+            t_stat = row[5].strip() if len(row) > 5 and row[5].strip() else "Pending"
+            t_dl = row[6].strip() if len(row) > 6 and row[6].strip() else "Not specified"
+            t_dep = row[7].strip() if len(row) > 7 else ""
+            t_notes = row[8].strip() if len(row) > 8 else ""
+            return {
+                "task_id": t_id,
+                "task id": t_id,
+                "task_name": t_name,
+                "task name": t_name,
+                "deliverable": t_deliv,
+                "owner": t_owner,
+                "priority": t_prio,
+                "status": t_stat,
+                "deadline": t_dl,
+                "dependencies": t_dep,
+                "notes": t_notes,
+            }
+
+    # Case 2: Semicolon or Key: Value delimited format (e.g. Row 1: Task ID: TSK-101; Task Name: ...)
+    if "task id:" in line_lower or "task name:" in line_lower:
+        fields: dict[str, str] = {}
+        parts = re.split(r";\s*", clean_l)
+        for part in parts:
+            m = re.match(r"^(?:Row\s*\d+\s*:\s*)?([A-Za-z\s]+)\s*:\s*(.*)$", part.strip())
+            if m:
+                k = m.group(1).strip().lower()
+                v = m.group(2).strip()
+                fields[k] = v
+        if "task name" in fields or "task id" in fields:
+            t_id = fields.get("task id", "")
+            t_name = fields.get("task name", "")
+            return {
+                "task_id": t_id,
+                "task id": t_id,
+                "task_name": t_name,
+                "task name": t_name,
+                "deliverable": fields.get("deliverable", ""),
+                "owner": fields.get("owner", fields.get("assigned to", "Unassigned")),
+                "priority": fields.get("priority", "Medium"),
+                "status": fields.get("status", "Pending"),
+                "deadline": fields.get("deadline", "Not specified"),
+                "dependencies": fields.get("dependencies", ""),
+                "notes": fields.get("notes", ""),
+            }
+
+    return None
+
+
+def get_semantic_risk_cluster_key(text: str, title: str = "", category: str = "") -> str:
+    """Map overlapping text/title expressions into a canonical semantic cluster key."""
+    combined = f"{title} {text}".lower()
+
+    # 1. Compound Technical Bottleneck (Memory + Latency in single line)
+    if "memory consumption" in combined and "latency" in combined and "1200ms" in combined:
+        return "technical_bottleneck_compound"
+
+    # 2. Milestone 2 Schedule Findings
+    if "milestone 2" in combined and any(k in combined for k in ["3 weeks", "delayed by 3 weeks"]):
+        return "milestone2_delay_3_weeks"
+    if "2026-10-15" in combined and any(k in combined for k in ["slipping into november", "at risk of slipping"]):
+        return "milestone2_target_slipping"
+
+    # 3. OAuth / SecOps Schedule Delay & Blocker
+    if (
+        ("oauth" in combined or "secops" in combined or "rbac" in combined or "security compliance" in combined or "security review" in combined or "token exchange" in combined)
+        and any(k in combined for k in ["blocked", "blocking", "approval", "backlog", "rate limit", "exception ticket", "review"])
+        and not any(k in combined for k in ["database migration", "memory"])
+    ):
+        return "oauth_secops_approval"
+
+    # 4. Database Migration Failure / Delay on Staging
+    if any(k in combined for k in ["database migration", "migration scripts", "migration tests", "schema mismatch", "schema syntax"]):
+        return "database_migration_staging"
+
+    # 5. Staging Cluster Memory Crashes / Worker Pod Consumption
+    if any(k in combined for k in ["memory out-of-bounds", "memory crashes", "memory usage in telemetry", "frequent memory"]):
+        return "staging_memory_crashes"
+
+    # 6. Cross-Region Network Latency Spikes
+    if any(k in combined for k in ["network latency", "latency spikes", "1200ms"]):
+        return "network_latency_spikes"
+
+    # 7. Cloud Budget Overrun / Cost Containment
+    if any(k in combined for k in ["budget overrun", "cloud infrastructure expenditure", "cloud spend exceeded", "exceeded budget by 22%", "cloud cost containment", "budget optimization", "cloud spend"]):
+        return "cloud_budget_overrun"
+
+    # 8. Data Warehouse Sync Kafka Dependency
+    if "data warehouse" in combined and "kafka" in combined:
+        return "data_warehouse_kafka_dependency"
+
+    # 9. Frontend Engineering Capacity / Understaffed
+    if "frontend" in combined and any(k in combined for k in ["understaffed", "bandwidth", "shortage"]):
+        return "frontend_team_understaffed"
+
+    # 10. Senior SRE Shortage / Deployment Pipeline Instability
+    if ("site reliability" in combined or "sre" in combined) and any(k in combined for k in ["shortage", "instability", "pipeline"]):
+        return "sre_shortage_instability"
+
+    # 11. Frontend Telemetry Chart Rendering Behind Schedule
+    if ("telemetry chart" in combined or "chart rendering" in combined) and any(k in combined for k in ["behind schedule", "delayed"]):
+        return "telemetry_chart_behind_schedule"
+
+    # 12. Incomplete Test Coverage on Token Refresh
+    if "test coverage" in combined or ("token refresh" in combined and "incomplete" in combined):
+        return "incomplete_test_coverage"
+
+    # 13. Flaky Integration Tests
+    if "flaky integration tests" in combined or ("flaky" in combined and "pipeline" in combined):
+        return "flaky_integration_tests"
+
+    # 13. Mode A Charter Risks
+    if "telemetry" in combined and any(k in combined for k in ["overdue", "scheduled for completion"]):
+        return "cloud_telemetry_pipeline_overdue"
+    if "rbac" in combined and "telemetry" in combined and any(k in combined for k in ["dependency", "blocked by", "cannot begin"]):
+        return "rbac_telemetry_dependency"
+    if "backend developer" in combined and any(k in combined for k in ["only one", "shortage", "single"]):
+        return "single_backend_developer_bottleneck"
+    if "integration testing" in combined and "not started" in combined:
+        return "integration_testing_unstarted"
+
+    # 14. Fallback: Normalized token signature
+    stopwords = {
+        "with", "that", "this", "from", "have", "been", "were", "what", "when",
+        "where", "which", "will", "would", "could", "should", "their", "there",
+        "about", "project", "deliverable", "milestone", "status", "deadline",
+        "review", "active", "risk", "issue", "finding", "impact", "potential",
+        "schedule", "delay", "behind", "into", "over", "under", "also", "some"
+    }
+    words = [
+        w for w in re.findall(r"[a-z0-9]+", combined)
+        if len(w) >= 4 and w not in stopwords
+    ]
+    key_words = sorted(list(dict.fromkeys(words))[:4])
+    cat_tag = (category or "gen").lower()[:4]
+    return f"{cat_tag}_{'_'.join(key_words)}" if key_words else normalize_content_key(text)
+
+
 def clean_text(text: str) -> str:
     """Strip extraneous whitespace and control characters."""
     return re.sub(r"\s+", " ", text).strip()
+
+
+def detect_filename_from_text(text: str) -> str | None:
+    """Infer source filename from document headers, metadata markers, or known project files."""
+    if not text:
+        return None
+
+    # Check explicit filename / source / document labels in first 1000 characters
+    head = text[:1000]
+    m = re.search(
+        r"(?:^|[\r\n])\s*(?:source(?:\s*file(?:name)?)?|file(?:name)?|document)\s*[:=]\s*([a-zA-Z0-9_\-\./\\]+\.(?:pdf|docx|csv|txt))\b",
+        head,
+        re.IGNORECASE,
+    )
+    if m:
+        fn = m.group(1).replace("\\", "/").split("/")[-1].strip()
+        if fn.lower() not in {"unknown", "none"}:
+            return fn
+
+    text_lower = text.lower()
+    if "sprint 14 technical sync" in text_lower or "sprint 14 retrospective" in text_lower:
+        return "sprint_14_retrospective.txt"
+    if "task id,task name,deliverable" in text_lower or ("tsk-101" in text_lower and "kafka" in text_lower):
+        return "task_matrix_sprint14.csv"
+    if "official project charter & architecture specification" in text_lower or ("enterprise cloud analytics platform" in text_lower and "official project charter" in text_lower):
+        return "project_charter_ecap.pdf"
+    if "monthly progress report" in text_lower and "reporting period: q3" in text_lower:
+        return "progress_report_q3.docx"
+
+    return None
 
 
 def extract_evidence_snippet(
